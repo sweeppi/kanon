@@ -6,3 +6,4 @@ dev-dist/
 .vite/
 coverage/
 .claude/
+*.blend1
