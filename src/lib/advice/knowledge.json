@@ -1,0 +1,437 @@
+{
+  "version": 1,
+  "verifiedAt": "2026-11-09",
+  "verifiedWith": "PubMed E-utilities esummary (PMID) + Crossref (DOI): scripts/verify-sources.mjs",
+  "sources": {
+    "schoenfeld2017": {
+      "pmid": "27433992",
+      "doi": "10.1080/02640414.2016.1210197",
+      "authors": "Schoenfeld BJ, Ogborn D, Krieger JW",
+      "year": 2017,
+      "title": "Dose-response relationship between weekly resistance training volume and increases in muscle mass: A systematic review and meta-analysis",
+      "journal": "J Sports Sci",
+      "type": "meta-analysis"
+    },
+    "schoenfeld2016": {
+      "pmid": "27102172",
+      "doi": "10.1007/s40279-016-0543-8",
+      "authors": "Schoenfeld BJ, Ogborn D, Krieger JW",
+      "year": 2016,
+      "title": "Effects of Resistance Training Frequency on Measures of Muscle Hypertrophy: A Systematic Review and Meta-Analysis",
+      "journal": "Sports Med",
+      "type": "meta-analysis"
+    },
+    "garthe2011": {
+      "pmid": "21558571",
+      "doi": "10.1123/ijsnem.21.2.97",
+      "authors": "Garthe I, Raastad T, Refsnes PE, Koivisto A, Sundgot-Borgen J",
+      "year": 2011,
+      "title": "Effect of two different weight-loss rates on body composition and strength and power-related performance in elite athletes",
+      "journal": "Int J Sport Nutr Exerc Metab",
+      "type": "rct"
+    },
+    "helms2014prep": {
+      "pmid": "24864135",
+      "doi": "10.1186/1550-2783-11-20",
+      "authors": "Helms ER, Aragon AA, Fitschen PJ",
+      "year": 2014,
+      "title": "Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation",
+      "journal": "J Int Soc Sports Nutr",
+      "type": "review"
+    },
+    "helms2014protein": {
+      "pmid": "24092765",
+      "doi": "10.1123/ijsnem.2013-0054",
+      "authors": "Helms ER, Zinn C, Rowlands DS, Brown SR",
+      "year": 2014,
+      "title": "A systematic review of dietary protein during caloric restriction in resistance trained lean athletes: a case for higher intakes",
+      "journal": "Int J Sport Nutr Exerc Metab",
+      "type": "systematic-review"
+    },
+    "morton2018": {
+      "pmid": "28698222",
+      "doi": "10.1136/bjsports-2017-097608",
+      "authors": "Morton RW, Murphy KT, McKellar SR, et al.",
+      "year": 2018,
+      "title": "A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults",
+      "journal": "Br J Sports Med",
+      "type": "meta-analysis"
+    },
+    "schoenfeld2018meal": {
+      "pmid": "29497353",
+      "doi": "10.1186/s12970-018-0215-1",
+      "authors": "Schoenfeld BJ, Aragon AA",
+      "year": 2018,
+      "title": "How much protein can the body use in a single meal for muscle-building? Implications for daily protein distribution",
+      "journal": "J Int Soc Sports Nutr",
+      "type": "review"
+    },
+    "trexler2014": {
+      "pmid": "24571926",
+      "doi": "10.1186/1550-2783-11-7",
+      "authors": "Trexler ET, Smith-Ryan AE, Norton LE",
+      "year": 2014,
+      "title": "Metabolic adaptation to weight loss: implications for the athlete",
+      "journal": "J Int Soc Sports Nutr",
+      "type": "review"
+    },
+    "byrne2018": {
+      "pmid": "28925405",
+      "doi": "10.1038/ijo.2017.206",
+      "authors": "Byrne NM, Sainsbury A, King NA, Hills AP, Wood RE",
+      "year": 2018,
+      "title": "Intermittent energy restriction improves weight loss efficiency in obese men: the MATADOR study",
+      "journal": "Int J Obes (Lond)",
+      "type": "rct"
+    },
+    "murphy2022": {
+      "pmid": "34623696",
+      "doi": "10.1111/sms.14075",
+      "authors": "Murphy C, Koehler K",
+      "year": 2022,
+      "title": "Energy deficiency impairs resistance training gains in lean mass but not strength: A meta-analysis and meta-regression",
+      "journal": "Scand J Med Sci Sports",
+      "type": "meta-analysis"
+    },
+    "knowles2018": {
+      "pmid": "29422383",
+      "doi": "10.1016/j.jsams.2018.01.012",
+      "authors": "Knowles OE, Drinkwater EJ, Urwin CS, Lamon S, Aisbett B",
+      "year": 2018,
+      "title": "Inadequate sleep and muscle strength: Implications for resistance training",
+      "journal": "J Sci Med Sport",
+      "type": "systematic-review"
+    },
+    "ashwell2012": {
+      "pmid": "22106927",
+      "doi": "10.1111/j.1467-789X.2011.00952.x",
+      "authors": "Ashwell M, Gunn P, Gibson S",
+      "year": 2012,
+      "title": "Waist-to-height ratio is a better screening tool than waist circumference and BMI for adult cardiometabolic risk factors: systematic review and meta-analysis",
+      "journal": "Obes Rev",
+      "type": "meta-analysis"
+    },
+    "reynolds2019": {
+      "pmid": "30638909",
+      "doi": "10.1016/S0140-6736(18)31809-9",
+      "authors": "Reynolds A, Mann J, Cummings J, Winter N, Mete E, Te Morenga L",
+      "year": 2019,
+      "title": "Carbohydrate quality and human health: a series of systematic reviews and meta-analyses",
+      "journal": "Lancet",
+      "type": "meta-analysis"
+    },
+    "searle2015": {
+      "pmid": "25681408",
+      "doi": "10.1177/0269215515570379",
+      "authors": "Searle A, Spink M, Ho A, Chuter V",
+      "year": 2015,
+      "title": "Exercise interventions for the treatment of chronic low back pain: a systematic review and meta-analysis of randomised controlled trials",
+      "journal": "Clin Rehabil",
+      "type": "meta-analysis"
+    },
+    "smith2014": {
+      "pmid": "25488399",
+      "doi": "10.1186/1471-2474-15-416",
+      "authors": "Smith BE, Littlewood C, May S",
+      "year": 2014,
+      "title": "An update of stabilisation exercises for low back pain: a systematic review with meta-analysis",
+      "journal": "BMC Musculoskelet Disord",
+      "type": "meta-analysis"
+    },
+    "mcgill1998": {
+      "pmid": "9672547",
+      "doi": "10.1093/ptj/78.7.754",
+      "authors": "McGill SM",
+      "year": 1998,
+      "title": "Low back exercises: evidence for improving exercise regimens",
+      "journal": "Phys Ther",
+      "type": "review"
+    },
+    "zheng2015": {
+      "pmid": "25521523",
+      "doi": "10.1002/oby.20946",
+      "authors": "Zheng Y, Klem ML, Sereika SM, Danford CA, Ewing LJ, Burke LE",
+      "year": 2015,
+      "title": "Self-weighing in weight management: a systematic literature review",
+      "journal": "Obesity (Silver Spring)",
+      "type": "systematic-review"
+    },
+    "iraki2019": {
+      "pmid": "31247944",
+      "doi": "10.3390/sports7070154",
+      "authors": "Iraki J, Fitschen P, Espinar S, Helms E",
+      "year": 2019,
+      "title": "Nutrition Recommendations for Bodybuilders in the Off-Season: A Narrative Review",
+      "journal": "Sports (Basel)",
+      "type": "review"
+    },
+    "kouri1995": {
+      "pmid": "7496846",
+      "doi": "10.1097/00042752-199510000-00003",
+      "authors": "Kouri EM, Pope HG Jr, Katz DL, Oliva P",
+      "year": 1995,
+      "title": "Fat-free mass index in users and nonusers of anabolic-androgenic steroids",
+      "journal": "Clin J Sport Med",
+      "type": "observational"
+    },
+    "roberts2020": {
+      "pmid": "32148575",
+      "doi": "10.2478/hukin-2019-0096",
+      "authors": "Roberts BM, Helms ER, Trexler ET, Fitschen PJ",
+      "year": 2020,
+      "title": "Nutritional Recommendations for Physique Athletes",
+      "journal": "J Hum Kinet",
+      "type": "review"
+    }
+  },
+  "rules": [
+    {
+      "id": "volume-low",
+      "kind": "research",
+      "claim": "Больший недельный объём связан с большей гипертрофией; 10+ подходов на мышцу в неделю дают больший прирост, чем меньше 5 и 5–9.",
+      "condition": {
+        "type": "weeklySetsBelow",
+        "min": 10
+      },
+      "recommendation": "{muscles}: в среднем {value} рабочих подходов в неделю. Постепенно доведите до 10+ (по 2–4 подхода в неделю на группу).",
+      "sources": [
+        "schoenfeld2017"
+      ],
+      "evidence": "meta-analysis"
+    },
+    {
+      "id": "volume-high",
+      "kind": "research",
+      "claim": "Данные о пользе объёма выше ~20 подходов на мышцу в неделю ограничены; метаанализ показал дозозависимость, но верхняя граница плохо изучена.",
+      "condition": {
+        "type": "weeklySetsAbove",
+        "max": 20
+      },
+      "recommendation": "{muscles}: {value} подходов в неделю — выше изученного диапазона. Особенно на сушке следите за восстановлением и силовыми; если 1ПМ падает — уменьшите объём.",
+      "sources": [
+        "schoenfeld2017"
+      ],
+      "evidence": "meta-analysis",
+      "uncertain": true
+    },
+    {
+      "id": "frequency-low",
+      "kind": "research",
+      "claim": "Тренировка мышцы ≥ 2 раз в неделю в среднем даёт больше гипертрофии, чем 1 раз при сопоставимых условиях.",
+      "condition": {
+        "type": "frequencyBelow",
+        "min": 2
+      },
+      "recommendation": "{muscles} тренируются ~1 раз в неделю. Попробуйте разбить тот же объём на 2 тренировки.",
+      "sources": [
+        "schoenfeld2016"
+      ],
+      "evidence": "meta-analysis"
+    },
+    {
+      "id": "loss-too-fast",
+      "kind": "research",
+      "claim": "Более медленная потеря веса (~0.7 %/нед) лучше сохраняла безжировую массу и силу, чем быстрая (~1.4 %/нед); для натуралов рекомендуют 0.5–1 %/нед.",
+      "condition": {
+        "type": "lossRateAbove",
+        "pctPerWeek": 1
+      },
+      "recommendation": "Тренд веса снижается на {value} % в неделю — быстрее 1 %. Добавьте ~{kcal} ккал в день, чтобы выйти на ~0.7 %/нед.",
+      "sources": [
+        "garthe2011",
+        "helms2014prep",
+        "roberts2020"
+      ],
+      "evidence": "rct"
+    },
+    {
+      "id": "gain-too-fast",
+      "kind": "research",
+      "claim": "Для опытных атлетов в межсезонье обзор рекомендует набор ~0.25–0.5 % массы в неделю, чтобы ограничить прирост жира.",
+      "condition": {
+        "type": "gainRateAbove",
+        "pctPerWeek": 0.5
+      },
+      "recommendation": "Вес растёт на {value} % в неделю. Для стажа 4+ лет это быстро: снизьте профицит.",
+      "sources": [
+        "iraki2019"
+      ],
+      "evidence": "review",
+      "uncertain": true
+    },
+    {
+      "id": "protein-low",
+      "kind": "research",
+      "claim": "Польза добавочного белка для мышц выходит на плато около 1.6 г/кг (95 % ДИ до 2.2 г/кг); на дефиците у сухих атлетов обоснованы 2.3–3.1 г/кг безжировой массы.",
+      "condition": {
+        "type": "proteinBelowTarget"
+      },
+      "recommendation": "Белок в среднем {value} г/день при цели от {target} г. Добавьте {gap} г — например, творог, яйца, курицу или протеин.",
+      "sources": [
+        "morton2018",
+        "helms2014protein"
+      ],
+      "evidence": "meta-analysis"
+    },
+    {
+      "id": "protein-distribution",
+      "kind": "research",
+      "claim": "Для максимального анаболического ответа обзор предлагает ≥ 0.4 г/кг белка на приём, минимум в 4 приёма в день.",
+      "condition": {
+        "type": "proteinMealsBelow",
+        "min": 3
+      },
+      "recommendation": "В днях с записями в среднем {value} приёма с белком. Попробуйте 4 приёма по ~{perMeal} г.",
+      "sources": [
+        "schoenfeld2018meal"
+      ],
+      "evidence": "review",
+      "uncertain": true
+    },
+    {
+      "id": "plateau",
+      "kind": "research",
+      "claim": "При длительном дефиците расход энергии адаптивно снижается; это одна из причин плато веса.",
+      "condition": {
+        "type": "plateauWeeks",
+        "weeks": 3
+      },
+      "recommendation": "Тренд веса стоит {value} нед. Сначала проверьте точность учёта (взвешивание еды, «невидимые» калории), затем уменьшите калории на 100–200 ккал или добавьте шаги. Вариант — 1–2 недели на поддержке (диетический перерыв): в РКИ MATADOR у мужчин с ожирением это улучшило эффективность — перенос на атлетов не доказан.",
+      "sources": [
+        "trexler2014",
+        "byrne2018"
+      ],
+      "evidence": "review",
+      "uncertain": true
+    },
+    {
+      "id": "strength-drop-cut",
+      "kind": "research",
+      "claim": "Метаанализ: дефицит энергии ухудшает прирост безжировой массы, но в среднем не прирост силы. Заметное падение силы на сушке — повод проверить восстановление; недосып связан со снижением силы.",
+      "condition": {
+        "type": "e1rmDrop",
+        "pct": 5
+      },
+      "recommendation": "Расчётный 1ПМ в «{exercise}» упал на {value} % за последние недели. Проверьте сон (≥ 7 ч), темп сушки и объём; при темпе > 1 %/нед замедлите сушку.",
+      "sources": [
+        "murphy2022",
+        "knowles2018"
+      ],
+      "evidence": "meta-analysis"
+    },
+    {
+      "id": "whtr-high",
+      "kind": "research",
+      "claim": "Отношение талии к росту ≥ 0.5 — простой маркёр повышенного кардиометаболического риска, лучше ИМТ и одной талии.",
+      "condition": {
+        "type": "waistToHeightAbove",
+        "value": 0.5
+      },
+      "recommendation": "Талия/рост = {value}. Цель — меньше 0.5 (талия меньше {target} см).",
+      "sources": [
+        "ashwell2012"
+      ],
+      "evidence": "meta-analysis"
+    },
+    {
+      "id": "fiber-low",
+      "kind": "research",
+      "claim": "Потребление 25–29 г клетчатки в день связано со снижением риска ряда заболеваний; больше — вероятно, ещё лучше.",
+      "condition": {
+        "type": "fiberBelow",
+        "g": 25
+      },
+      "recommendation": "Клетчатка в среднем {value} г/день. Добавьте овощи, бобовые, овсянку или цельнозерновой хлеб.",
+      "sources": [
+        "reynolds2019"
+      ],
+      "evidence": "meta-analysis"
+    },
+    {
+      "id": "lordosis-axial",
+      "kind": "research",
+      "claim": "При хронической боли в пояснице силовые и стабилизационные упражнения в РКИ уменьшают боль и улучшают функцию. Данных именно по гиперлордозу у здоровых атлетов мало — это перенос, а не прямое доказательство.",
+      "condition": {
+        "type": "axialWithLordosis"
+      },
+      "recommendation": "Флаг «гиперлордоз»: за 4 недели есть упражнения с осевой нагрузкой ({value}). Добавьте стабилизацию кора (dead bug, bird dog, боковая планка) и рассмотрите альтернативы. Боль ≥ 3/10 — стоп и к врачу. Это подсказка, а не диагноз.",
+      "sources": [
+        "searle2015",
+        "smith2014",
+        "mcgill1998"
+      ],
+      "evidence": "meta-analysis",
+      "uncertain": true
+    },
+    {
+      "id": "weigh-in-rare",
+      "kind": "research",
+      "claim": "Регулярное самовзвешивание в обзорах связано с лучшим контролем веса (в основном наблюдательные данные и РКИ с комплексными вмешательствами).",
+      "condition": {
+        "type": "weighInsPerWeekBelow",
+        "min": 3
+      },
+      "recommendation": "За последние 2 недели {value} взвешивания в неделю. Для надёжного тренда взвешивайтесь 3–7 раз в неделю утром натощак.",
+      "sources": [
+        "zheng2015"
+      ],
+      "evidence": "systematic-review"
+    },
+    {
+      "id": "ffmi-ceiling",
+      "kind": "research",
+      "claim": "Среди натуральных атлетов в исследовании нормализованный FFMI редко превышал ~25.",
+      "condition": {
+        "type": "ffmiAbove",
+        "value": 25
+      },
+      "recommendation": "Нормализованный FFMI {value} — у верхней границы натурального диапазона. Перепроверьте замеры шеи и талии: формула ВМС США может занижать жир у мускулистых людей.",
+      "sources": [
+        "kouri1995"
+      ],
+      "evidence": "observational"
+    }
+  ],
+  "heuristics": [
+    {
+      "id": "lagging-zone",
+      "claim": "Пропорции Ривза — эстетический ориентир культуриста 1950-х, а не результат исследования.",
+      "condition": {
+        "type": "reevesLagging",
+        "pct": 90
+      },
+      "recommendation": "Отстающие зоны по Ривзу: {value}. Поставьте их первыми в тренировке и добавьте 2–4 подхода в неделю.",
+      "note": "Не исследование: эстетическая эвристика (Reeves, 1995)."
+    },
+    {
+      "id": "v-taper",
+      "claim": "Отношение плеч к талии ≈ 1.618 («золотое сечение») — эстетический ориентир, не научная норма.",
+      "condition": {
+        "type": "shoulderWaistBelow",
+        "value": 1.5
+      },
+      "recommendation": "Плечи/талия = {value}. Приоритет — средние дельты и широчайшие, плюс снижение талии на сушке.",
+      "note": "Не исследование: эстетическая эвристика."
+    },
+    {
+      "id": "deload",
+      "claim": "Разгрузочные недели широко используются в силовых видах, но доказательства их эффективности ограничены (в основном опросы практиков).",
+      "condition": {
+        "type": "e1rmStagnantWeeks",
+        "weeks": 4
+      },
+      "recommendation": "Расчётный 1ПМ в «{exercise}» не растёт ~{value} нед. Тренерское правило: неделя со сниженным на 30–50 % объёмом, затем продолжить.",
+      "note": "Не исследование: тренерская практика."
+    },
+    {
+      "id": "backup",
+      "claim": "На iOS данные сайта, не установленного на экран «Домой», могут быть удалены системой.",
+      "condition": {
+        "type": "backupOlderThan",
+        "days": 7
+      },
+      "recommendation": "Последний бэкап: {value}. Сделайте бэкап в «Настройках» и сохраните файл в «Файлы» или iCloud Drive.",
+      "note": "Правило приложения."
+    }
+  ]
+}
