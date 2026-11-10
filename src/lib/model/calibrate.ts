@@ -215,7 +215,8 @@ export function globalsFromComposition(normFfmi?: number | null, bodyFat?: numbe
   // Мышечность (общий морф MakeHuman) и рельеф (мышечные формы частей тела) растут с FFMI;
   // рельеф лучше виден при низком жире. Эвристика: FFMI 20 → обычный тренированный, 24–25 → потолок натурала.
   if (normFfmi != null) {
-    g.muscle = clamp((normFfmi - (f ? 15.5 : 19)) / (f ? 4 : 4.5));
+    // общий морф MakeHuman «maxmuscle» даёт культуристский тип (огромные трапеции, таз) — ограничиваем 0,55
+    g.muscle = Math.max(-1, Math.min(0.55, (normFfmi - (f ? 15.5 : 19)) / (f ? 5 : 6)));
     const lean = bodyFat == null ? 0.8 : Math.max(0.4, Math.min(1.1, ((f ? 32 : 24) - bodyFat) / 12));
     g.definition = Math.max(0, Math.min(1.0, ((normFfmi - (f ? 16 : 19.5)) / (f ? 4.5 : 4.5)) * lean * (f ? 0.6 : 1)));
   }

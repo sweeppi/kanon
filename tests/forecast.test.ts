@@ -17,7 +17,9 @@ const base: ForecastBase = {
   goalBodyFat: 11,
   cutRatePct: 0.7,
   butt: caseyButt(180, 17.5, 23, 10),
+  style: 'max',
 };
+const aest: ForecastBase = { ...base, style: 'aesthetic' };
 
 describe('Прогноз тела', () => {
   it('сухая масса растёт с реальной скоростью и упирается в потолок', () => {
@@ -49,11 +51,29 @@ describe('Прогноз тела', () => {
   });
 });
 
+describe('Стиль «Эстетика» (фитнес-модель)', () => {
+  it('цель FFMI 23, жир ≤ 10 %, узкая талия, V-силуэт, ноги растут умеренно', () => {
+    const c = forecastAt(aest, 'ceiling');
+    expect(c.normFfmi).toBeCloseTo(23, 1);
+    expect(c.bodyFat).toBeLessThanOrEqual(10.01);
+    expect(c.values.waist!).toBeLessThan(80); // талия уменьшается за счёт реально сброшенного жира, не уже 0,43 × рост
+    expect(c.values.waist!).toBeGreaterThanOrEqual(0.43 * 180);
+    expect(c.values.shoulders! / c.values.waist!).toBeGreaterThan(1.55);
+    const m = forecastAt(base, 'ceiling');
+    expect(c.values.thigh!).toBeLessThan(m.values.thigh!); // ноги меньше, чем в «максимуме»
+    expect(c.weight).toBeLessThan(m.weight);
+  });
+  it('по умолчанию стиль — эстетика', () => {
+    const { style: _s, ...noStyle } = base;
+    expect(forecastAt(noStyle, 'ceiling').normFfmi).toBeCloseTo(23, 1);
+  });
+});
+
 describe('Мышечность и рельеф модели из состава тела', () => {
   it('у натурального потолка модель заметно накачаннее обычной', () => {
     const avg = globalsFromComposition(20, 18);
     const top = globalsFromComposition(25, 9);
-    expect(top.muscle!).toBeCloseTo(1, 6);
+    expect(top.muscle!).toBeCloseTo(0.55, 6); // общий морф ограничен — иначе трапеции и таз как у культуриста
     expect(top.definition!).toBeCloseTo(1, 6);
     expect(avg.definition!).toBeLessThan(0.15);
     expect(top.fat!).toBeLessThan(0);
@@ -74,10 +94,11 @@ describe('Мини-отчёт', () => {
     expect(r.zones.find((z) => z.zone === 'shoulders')!.basis).toMatch(/1,618/);
   });
   it('упражнения фильтруются по ограничениям (колено — без жима ногами и гакка)', () => {
-    const thighs = r.zones.find((z) => z.zone === 'thighs');
-    expect(thighs).toBeDefined();
-    expect(thighs!.exercises.join(' ')).not.toMatch(/Жим ногами|Гакк/);
-    expect(thighs!.exercises).toContain('Сгибания ног');
+    const squat = r.strength.find((p) => p.pattern === 'squat')!;
+    expect(squat.exercises.join(' ')).not.toMatch(/Жим ногами|Гакк/);
+    expect(squat.exercises).toContain('Присед с поясом (belt squat)');
+    // в эстетике бёдра 58 см уже не приоритет — цели берутся из модели «Эстетика»
+    expect(r.zones.every((z) => z.basis === 'эстетическая цель' || z.zone === 'shoulders')).toBe(true);
   });
   it('прогноз и текст отчёта', () => {
     expect(r.forecast).not.toBeNull();

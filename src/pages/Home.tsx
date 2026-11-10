@@ -31,11 +31,13 @@ export function Home() {
   const { d, settings, ms } = useStore();
   const [mode, setMode] = useState<Mode>('now');
   const [heat, setHeat] = useState(false);
+  const [ghostOn, setGhostOn] = useState(false); // в «Прогнозе» и «Цели» сравнение с текущим телом — по желанию
   const dates = useMemo(() => [...new Set(ms.map((m) => m.date))].sort(), [ms]);
   const [dateA, setDateA] = useState<string>('');
   const [dateB, setDateB] = useState<string>('');
   const [months, setMonths] = useState<number>(12);
   const [ceiling, setCeiling] = useState(false);
+  const [fcStyle, setFcStyle] = useState<'aesthetic' | 'max'>('aesthetic');
   const fcBase: ForecastBase | null =
     d.values.weight && d.comp.bodyFat != null
       ? {
@@ -48,6 +50,7 @@ export function Home() {
           goalBodyFat: settings.goalBodyFat,
           cutRatePct: settings.cutRatePct,
           butt: d.comp.butt,
+          style: fcStyle,
         }
       : null;
   const fc = useMemo(() => (fcBase ? forecastAt(fcBase, ceiling ? 'ceiling' : months) : null), [fcBase && JSON.stringify(fcBase), months, ceiling]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -65,6 +68,13 @@ export function Home() {
   const { primary, ghost } = useMemo(() => {
     const now = specFor(v);
     if (mode === 'goal') {
+      // Цель = эстетический итог (FFMI ≈ 23, жир ≈ 10 %) + ручные цели из настроек; без веса/жира — старая цель по Ривзу
+      if (fcBase) {
+        const g = forecastAt({ ...fcBase, style: 'aesthetic' }, 'ceiling');
+        const spec = specFor({ ...g.values, ...settings.goalMeasurements });
+        spec.globals = { ...spec.globals, ...globalsFromComposition(g.normFfmi, g.bodyFat, settings.sex) };
+        return { primary: spec, ghost: now };
+      }
       const g = goalMeasurements(d, settings);
       const spec = specFor(g);
       spec.globals = { ...spec.globals, ...globalsFromComposition(d.comp.normFfmi, settings.goalBodyFat, settings.sex) };
@@ -172,16 +182,57 @@ export function Home() {
                 ['ab', 'A / B'],
               ]}
             />
+            {mode === 'ab' && (
+              <div className="grid2" style={{ marginTop: 8 }}>
+                <label className="field">
+                  <span className="field-label">Дата A (призрак)</span>
+                  <select value={dateA || dates[0]} onChange={(e) => setDateA(e.target.value)}>
+                    {dates.map((x) => (
+                      <option key={x} value={x}>
+                        {fmtDate(x)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">Дата B</span>
+                  <select value={dateB || dates[dates.length - 1]} onChange={(e) => setDateB(e.target.value)}>
+                    {dates.map((x) => (
+                      <option key={x} value={x}>
+                        {fmtDate(x)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+            <div style={{ marginTop: 8 }}>
+              <Body3DSlot primary={primary} ghost={mode === 'forecast' || mode === 'goal' ? (ghostOn ? ghost : null) : ghost} heat={heat} zoneStatus={d.zoneStatus} onCalibrated={(main, g) => setCal({ main, ghost: g })} />
+            </div>
             {mode === 'forecast' && (
               <div style={{ marginTop: 8 }}>
                 {!fc ? (
                   <p className="tiny muted">Для прогноза нужны вес и % жира (шея + талия или весы).</p>
                 ) : (
                   <>
+                    <Seg<'aesthetic' | 'max'>
+                      value={fcStyle}
+                      onChange={setFcStyle}
+                      label="Стиль цели"
+                      options={[
+                        ['aesthetic', 'Эстетика'],
+                        ['max', 'Максимум массы'],
+                      ]}
+                    />
+                    <p className="tiny muted" style={{ margin: '4px 0 6px' }}>
+                      {fcStyle === 'aesthetic'
+                        ? 'Сухое атлетичное тело: FFMI ≈ 23, жир ≈ 10 %, широкие плечи и узкая талия, ноги пропорциональные.'
+                        : 'Максимум мышц у натурального потолка (культуристский тип): FFMI ≈ 25 / потенциал Casey Butt.'}
+                    </p>
                     <div className="spread tiny">
-                      <span>{ceiling ? 'Натуральный потолок' : `Через ${months} мес.`}</span>
+                      <span>{ceiling ? (fcStyle === 'aesthetic' ? 'Итог: эстетическая цель' : 'Итог: натуральный потолок') : `Через ${months} мес.`}</span>
                       <button className={`btn btn-small ${ceiling ? 'btn-primary' : ''}`} onClick={() => setCeiling(!ceiling)}>
-                        Потолок
+                        Итог
                       </button>
                     </div>
                     <input type="range" min={0} max={60} step={3} value={months} disabled={ceiling} onChange={(e) => setMonths(+e.target.value)} aria-label="Месяцев вперёд" style={{ width: '100%' }} />
@@ -190,7 +241,7 @@ export function Home() {
                         <tr>
                           <th></th>
                           <th>Сейчас</th>
-                          <th>{ceiling ? 'Потолок' : `+${months} мес.`}</th>
+                          <th>{ceiling ? 'Итог' : `+${months} мес.`}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -221,45 +272,22 @@ export function Home() {
                       </tbody>
                     </table>
                     <p className="tiny muted">
-                      Модель: сухая масса растёт ≈ {fmt(fcBase!.trainingYears >= 4 ? 1.75 : fcBase!.trainingYears >= 1.5 ? 3.75 : 7, 1)} кг/год{settings.sex === 'female' ? ' ÷ 2' : ''} с замедлением у потолка ({d.comp.butt ? 'Casey Butt' : `FFMI ${settings.sex === 'male' ? 25 : 21}`}), жир — к цели {settings.goalBodyFat} % темпом сушки. Пройдено {fmt(fc.toCeiling * 100, 0)} % пути к потолку. Эвристика, а не обещание.
+                      Модель: сухая масса растёт ≈ {fmt(fcBase!.trainingYears >= 4 ? 1.75 : fcBase!.trainingYears >= 1.5 ? 3.75 : 7, 1)} кг/год{settings.sex === 'female' ? ' ÷ 2' : ''} с замедлением у {fcStyle === 'aesthetic' ? `цели FFMI ${settings.sex === 'male' ? 23 : 19.5}` : d.comp.butt ? 'потолка Casey Butt' : `потолка FFMI ${settings.sex === 'male' ? 25 : 21}`}, жир — к {fmt(fc.bodyFat, 0)} % темпом сушки. Пройдено {fmt(fc.toCeiling * 100, 0)} % пути к {fcStyle === 'aesthetic' ? 'цели' : 'потолку'}. Эвристика, а не обещание.
                     </p>
                   </>
                 )}
               </div>
             )}
-            {mode === 'ab' && (
-              <div className="grid2" style={{ marginTop: 8 }}>
-                <label className="field">
-                  <span className="field-label">Дата A (призрак)</span>
-                  <select value={dateA || dates[0]} onChange={(e) => setDateA(e.target.value)}>
-                    {dates.map((x) => (
-                      <option key={x} value={x}>
-                        {fmtDate(x)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field-label">Дата B</span>
-                  <select value={dateB || dates[dates.length - 1]} onChange={(e) => setDateB(e.target.value)}>
-                    {dates.map((x) => (
-                      <option key={x} value={x}>
-                        {fmtDate(x)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            )}
-            <div style={{ marginTop: 8 }}>
-              <Body3DSlot primary={primary} ghost={ghost} heat={heat} zoneStatus={d.zoneStatus} onCalibrated={(main, g) => setCal({ main, ghost: g })} />
-            </div>
             <div className="spread" style={{ marginTop: 8 }}>
               <label className="row tiny">
                 <input type="checkbox" checked={heat} onChange={(e) => setHeat(e.target.checked)} /> Тепловая карта зон
               </label>
               <span className="tiny muted">
-                {(mode === 'goal' || mode === 'forecast') && 'бронза — сейчас'}
+                {(mode === 'goal' || mode === 'forecast') && (
+                  <label className="row" style={{ display: 'inline-flex' }}>
+                    <input type="checkbox" checked={ghostOn} onChange={(e) => setGhostOn(e.target.checked)} /> бронза — сейчас
+                  </label>
+                )}
                 {mode === 'reeves' && 'бронза — идеал Ривза'}
                 {mode === 'ab' && 'бронза — дата A'}
               </span>

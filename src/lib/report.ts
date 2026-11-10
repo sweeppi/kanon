@@ -75,19 +75,29 @@ export function buildReport(d: Derived, s: Settings): Report {
   const butt = d.comp.butt;
   const reeves = d.comp.reevesIdeal;
   const zones: ZonePriority[] = [];
-  // эстетика: цель = потенциал Casey Butt при 10 % жира (если есть), иначе пропорции Ривза
+  // Цель эстетики = итог прогноза в стиле «Эстетика» (FFMI ≈ 23, жир ≈ 10 %, V-силуэт).
+  // Ривз (культурист 1950-х) и Casey Butt (максимум массы) завышают цели для эстетичного натурала — только запасной вариант.
+  const aest: Partial<Record<MeasureField, number>> | null =
+    v.weight && d.comp.bodyFat != null
+      ? forecastAt(
+          { sex: s.sex, heightCm: d.comp.heightCm, weight: v.weight, bodyFat: d.comp.bodyFat, values: v, trainingYears: s.trainingYears, goalBodyFat: s.goalBodyFat, cutRatePct: s.cutRatePct, butt, style: 'aesthetic' },
+          'ceiling',
+        ).values
+      : null;
+  const pick = (f: MeasureField, fallback: number | undefined, fallbackName: string): [number | undefined, string] =>
+    aest?.[f] && v[f] && aest[f]! > v[f]! + 0.2 ? [aest[f], 'эстетическая цель'] : aest ? [undefined, ''] : [fallback, fallbackName];
   const add = (zone: string, label: string, field: MeasureField, target: number | undefined, basis: string, setsZone: string, lowerIsBetter = false) => {
     const cur = v[field];
     if (!cur || !target) return;
     const pct = lowerIsBetter ? Math.min(100, (target / cur) * 100) : (cur / target) * 100;
     zones.push({ zone, label, current: cur, target, pct, gap: lowerIsBetter ? cur - target : target - cur, basis, sets: '', exercises: safe(ZONE_EX[setsZone] ?? [], s) });
   };
-  add('arms', 'Руки (бицепс в напряжении)', 'bicepsFlexed', butt?.bicepsFlexed ?? reeves.bicepsFlexed, butt ? 'потенциал Butt' : 'Ривз', 'arms');
-  add('chest', 'Грудь', 'chest', butt?.chest ?? reeves.chest, butt ? 'потенциал Butt' : 'Ривз', 'chest');
-  add('thighs', 'Бёдра', 'thigh', butt?.thigh ?? reeves.thigh, butt ? 'потенциал Butt' : 'Ривз', 'thighs');
-  add('calves', 'Голени', 'calf', butt?.calf ?? reeves.calf, butt ? 'потенциал Butt' : 'Ривз', 'calves');
-  add('neck', 'Шея', 'neck', butt?.neck ?? reeves.neck, butt ? 'потенциал Butt' : 'Ривз', 'neck');
-  add('forearms', 'Предплечья', 'forearm', butt?.forearm, 'потенциал Butt', 'forearms');
+  add('arms', 'Руки (бицепс в напряжении)', 'bicepsFlexed', ...pick('bicepsFlexed', butt?.bicepsFlexed ?? reeves.bicepsFlexed, butt ? 'потенциал Butt' : 'Ривз'), 'arms');
+  add('chest', 'Грудь', 'chest', ...pick('chest', butt?.chest ?? reeves.chest, butt ? 'потенциал Butt' : 'Ривз'), 'chest');
+  add('thighs', 'Бёдра', 'thigh', ...pick('thigh', butt?.thigh ?? reeves.thigh, butt ? 'потенциал Butt' : 'Ривз'), 'thighs');
+  add('calves', 'Голени', 'calf', ...pick('calf', butt?.calf ?? reeves.calf, butt ? 'потенциал Butt' : 'Ривз'), 'calves');
+  add('neck', 'Шея', 'neck', ...pick('neck', butt?.neck ?? reeves.neck, butt ? 'потенциал Butt' : 'Ривз'), 'neck');
+  add('forearms', 'Предплечья', 'forearm', ...pick('forearm', butt?.forearm, 'потенциал Butt'), 'forearms');
   // V-силуэт: плечи / талия → сколько не хватает плеч при текущей талии
   if (v.shoulders && v.waist) {
     const ideal = (s.sex === 'male' ? GOLDEN : 1.45) * v.waist;
@@ -104,7 +114,7 @@ export function buildReport(d: Derived, s: Settings): Report {
     });
   }
   // Талия — «меньше лучше»
-  add('waist', 'Талия', 'waist', reeves.waist ?? (v.height ?? d.comp.heightCm) * 0.45, reeves.waist ? 'Ривз' : '0,45 × рост', 'core', true);
+  add('waist', 'Талия', 'waist', aest?.waist ?? (v.height ?? d.comp.heightCm) * 0.45, aest ? 'эстетическая цель' : '0,45 × рост', 'core', true);
   zones.sort((a, b) => a.pct - b.pct);
   zones.forEach((z, i) => {
     z.sets = z.zone === 'waist' ? 'снижение жира + кор 2–3 подхода' : i < 2 ? '14–20 подходов в неделю (приоритет)' : '10–14 подходов в неделю';
@@ -158,7 +168,7 @@ export function buildReport(d: Derived, s: Settings): Report {
     .join(' ');
 
   const notes = [
-    'Цели по обхватам — эвристики (Casey Butt / Ривз), не исследования. Объём 10–20 подходов — Schoenfeld 2017; частота 2 раза в неделю — Schoenfeld 2016.',
+    'Цели по обхватам — модель «Эстетика» (FFMI ≈ 23, жир ≈ 10 %, плечи/талия ≈ 1,6): эвристика, не исследование. Ривз и Casey Butt — ориентиры максимума массы, в отчёте не используются, если есть вес и % жира. Объём 10–20 подходов — Schoenfeld 2017; частота 2 раза в неделю — Schoenfeld 2016.',
     activeFlags(s.healthFlags).length ? 'Упражнения отфильтрованы по вашим ограничениям здоровья.' : '',
   ].filter(Boolean);
 

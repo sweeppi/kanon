@@ -18,6 +18,12 @@ export interface ForecastBase {
   cutRatePct: number;
   /** натуральный потенциал по Casey Butt при целевом жире (только мужчины, нужны запястье и лодыжка) */
   butt?: ButtResult | null;
+  /**
+   * 'aesthetic' (по умолчанию) — «фитнес-модель»: FFMI ≈ 23 (жен. ≈ 19,5), жир ≈ 9–10 % (жен. ≈ 19 %),
+   * акцент на верх тела и V-силуэт, ноги и шея растут умеренно, талия ≈ 0,43 × рост.
+   * 'max' — максимальная масса у натурального потолка (Casey Butt / FFMI 25): культуристский тип.
+   */
+  style?: 'aesthetic' | 'max';
 }
 
 export interface ForecastPoint {
@@ -35,11 +41,16 @@ const normFfmi = (lbm: number, hCm: number) => lbm / (hCm / 100) ** 2 + 6.1 * (1
 
 /** Потолок сухой массы: Casey Butt (если есть), иначе нормализованный FFMI 25 (муж.) / 21 (жен.). */
 export function lbmCeiling(b: ForecastBase): number {
-  if (b.sex === 'male' && b.butt) return b.butt.maxLbmKg;
   const h = b.heightCm / 100;
-  const ffmiMax = b.sex === 'male' ? 25 : 21;
-  return (ffmiMax - 6.1 * (1.8 - h)) * h * h;
+  const fromFfmi = (f: number) => (f - 6.1 * (1.8 - h)) * h * h;
+  if ((b.style ?? 'aesthetic') === 'aesthetic') return fromFfmi(b.sex === 'male' ? 23 : 19.5);
+  if (b.sex === 'male' && b.butt) return b.butt.maxLbmKg;
+  return fromFfmi(b.sex === 'male' ? 25 : 21);
 }
+
+/** Целевой % жира стиля: эстетика — сухо (видный пресс), но не соревновательная форма. */
+export const styleBodyFat = (b: ForecastBase) =>
+  (b.style ?? 'aesthetic') === 'aesthetic' ? Math.min(b.goalBodyFat, b.sex === 'male' ? 10 : 19) : b.goalBodyFat;
 
 /** Скорость набора сухой массы, кг/год (середина диапазона эвристики; у женщин вдвое меньше). */
 export function leanRatePerYear(years: number, sex: Sex): number {
@@ -62,7 +73,7 @@ export function forecastAt(b: ForecastBase, months: number | 'ceiling'): Forecas
   const toCeiling = gap0 <= 0.01 ? 1 : (lbm - lbm0) / gap0;
 
   // Жир: к цели темпом сушки (середина 0.5–1 %/нед), ниже цели не опускаем
-  const goal = Math.min(b.bodyFat, b.goalBodyFat);
+  const goal = Math.min(b.bodyFat, styleBodyFat(b));
   const ratePct = (b.cutRatePct || (FAT_LOSS_PCT_PER_WEEK[0] + FAT_LOSS_PCT_PER_WEEK[1]) / 2) / 100;
   const fat0 = b.weight - lbm0;
   const fatGoal = (lbm0 / (1 - goal / 100)) * (goal / 100);
@@ -76,25 +87,40 @@ export function forecastAt(b: ForecastBase, months: number | 'ceiling'): Forecas
   // Обхваты: мышечные ∝ √(сухая масса) (окружность растёт как корень из массы при той же длине),
   // минус подкожный жир (~0,4 % обхвата на 1 % жира). Если есть потенциал Butt — тянемся к нему.
   const v = b.values;
+  const aesthetic = (b.style ?? 'aesthetic') === 'aesthetic';
   const growth = Math.sqrt(lbm / lbm0);
   const fatAdj = 1 - 0.004 * (b.bodyFat - bodyFat);
+  const fatLost = fat0 - fatKg * (lbm / lbm0);
+  const r10 = (x: number) => Math.round(x * 10) / 10;
   const out: Partial<Record<MeasureField, number>> = { ...v, weight };
+  const UPPER: MeasureField[] = ['shoulders', 'chest', 'bicepsFlexed', 'bicepsRelaxed', 'tricepsFlexed', 'forearm'];
   for (const f of MUSCLE_FIELDS) {
     const cur = v[f];
     if (!cur) continue;
-    let next = cur * growth * fatAdj;
+    // эстетика: верх растёт быстрее (приоритет в программе), ноги и шея — вдвое медленнее
+    const g = aesthetic ? (UPPER.includes(f) ? growth ** 1.25 : growth ** 0.5) : growth;
+    let next = cur * g * fatAdj;
     const bk = BUTT_MAP[f];
-    if (b.sex === 'male' && b.butt && bk) {
+    if (!aesthetic && b.sex === 'male' && b.butt && bk) {
       const pot = b.butt[bk] as number;
       if (pot > cur) next = Math.max(next, cur + (pot - cur) * toCeiling);
     }
-    out[f] = Math.round(next * 10) / 10;
+    out[f] = r10(next);
   }
-  // плечи тянутся за грудью при наличии потенциала (Butt не даёт плечи)
-  if (v.shoulders && v.chest && out.chest) out.shoulders = Math.round(Math.max(out.shoulders ?? 0, v.shoulders * (out.chest / v.chest)) * 10) / 10;
-  // Талия: ~0,9 см на каждый килограмм сброшенного жира (эвристика), не уже 0,42 × рост
-  if (v.waist) out.waist = Math.round(Math.max(0.42 * b.heightCm, v.waist - (fat0 - fatKg * (lbm / lbm0)) * 0.9) * 10) / 10;
-  if (v.hips) out.hips = Math.round(v.hips * fatAdj * (1 + 0.3 * (growth - 1)) * 10) / 10;
+  // Талия: эстетика — к ≈ 0,43 × рост (≈ 1,1 см на кг сброшенного жира); максимум — 0,9 см/кг, не уже 0,42 × рост
+  if (v.waist) out.waist = r10(Math.max((aesthetic ? 0.43 : 0.42) * b.heightCm, v.waist - fatLost * (aesthetic ? 1.1 : 0.9)));
+  if (aesthetic) {
+    // V-силуэт: плечи тянутся к 1,6 × талия (жен. 1,4) по мере набора
+    if (v.shoulders && out.waist) {
+      const ideal = (b.sex === 'male' ? 1.6 : 1.4) * out.waist;
+      if (ideal > (out.shoulders ?? 0)) out.shoulders = r10((out.shoulders ?? v.shoulders) + (ideal - (out.shoulders ?? v.shoulders)) * toCeiling);
+    }
+    if (v.hips) out.hips = r10(v.hips * fatAdj);
+  } else {
+    // плечи тянутся за грудью при наличии потенциала (Butt не даёт плечи)
+    if (v.shoulders && v.chest && out.chest) out.shoulders = r10(Math.max(out.shoulders ?? 0, v.shoulders * (out.chest / v.chest)));
+    if (v.hips) out.hips = r10(v.hips * fatAdj * (1 + 0.3 * (growth - 1)));
+  }
   if (b.values.bodyFatInput !== undefined) out.bodyFatInput = Math.round(bodyFat * 10) / 10;
   return { months: t === Infinity ? Infinity : t, lbm, bodyFat, weight, normFfmi: normFfmi(lbm, b.heightCm), toCeiling, values: out };
 }
