@@ -6,7 +6,8 @@ import { Body3DSlot } from '../components/Body3DSlot';
 import { targetsFromValues } from '../lib/model/targets';
 import { globalsFromComposition, type Calibration } from '../lib/model/calibrate';
 import { latestValues, composition, goalMeasurements } from '../lib/derive';
-import { LEVELS, COMPONENT_WEIGHTS, type Component } from '../lib/calc/levels.config';
+import { LEVELS_BY_SEX, COMPONENT_WEIGHTS, type Component } from '../lib/calc/levels.config';
+import { applicableComponents } from '../lib/calc/levels';
 import { GOLDEN } from '../lib/calc/body';
 import type { MeasureField } from '../lib/data/db';
 
@@ -34,19 +35,21 @@ export function Home() {
   const [dateB, setDateB] = useState<string>('');
   const [cal, setCal] = useState<{ main: Calibration; ghost: Calibration | null } | null>(null);
   const lvl = d.level;
+  const LEVELS = LEVELS_BY_SEX[settings.sex];
+  const male = settings.sex === 'male';
   const v = d.values;
   const hasBody = Object.keys(v).length > 0;
 
   const specFor = (vals: Partial<Record<MeasureField, number>>) => {
     const c = composition(vals, settings);
-    return { targets: targetsFromValues(vals, c.heightCm), globals: globalsFromComposition(c.normFfmi, c.bodyFat) };
+    return { targets: targetsFromValues(vals, c.heightCm), globals: globalsFromComposition(c.normFfmi, c.bodyFat, settings.sex) };
   };
   const { primary, ghost } = useMemo(() => {
     const now = specFor(v);
     if (mode === 'goal') {
       const g = goalMeasurements(d, settings);
       const spec = specFor(g);
-      spec.globals = { ...spec.globals, ...globalsFromComposition(d.comp.normFfmi, settings.goalBodyFat) };
+      spec.globals = { ...spec.globals, ...globalsFromComposition(d.comp.normFfmi, settings.goalBodyFat, settings.sex) };
       return { primary: spec, ghost: now };
     }
     if (mode === 'reeves') {
@@ -104,7 +107,7 @@ export function Home() {
             Сильнее всего тянет балл вниз: <b>{COMP_RU[lvl.weakest]}</b> ({fmt(lvl.components[lvl.weakest], 0)} / 100, вес {Math.round(COMPONENT_WEIGHTS[lvl.weakest] * 100)} %)
           </p>
         )}
-        {lvl.missing.length === 5 ? (
+        {lvl.missing.length === applicableComponents(settings.sex).length ? (
           <p className="tiny muted">
             Данных пока нет. <a href="#measure">Внесите замеры</a> и <a href="#strength">импортируйте тренировки</a> — уровень посчитается.
           </p>
@@ -115,7 +118,7 @@ export function Home() {
           <summary>Компоненты балла</summary>
           <table className="tbl">
             <tbody>
-              {(Object.keys(COMPONENT_WEIGHTS) as Component[]).map((k) => (
+              {applicableComponents(settings.sex).map((k: Component) => (
                 <tr key={k}>
                   <td>{COMP_RU[k]}</td>
                   <td>{Math.round(COMPONENT_WEIGHTS[k] * 100)} %</td>
@@ -142,7 +145,7 @@ export function Home() {
               options={[
                 ['now', 'Сейчас'],
                 ['goal', 'Цель'],
-                ['reeves', 'Ривз'],
+                ...(male ? ([['reeves', 'Ривз']] as Array<[Mode, string]>) : []),
                 ['ab', 'A / B'],
               ]}
             />
@@ -230,7 +233,11 @@ export function Home() {
 
       <Card title="Сильные и отстающие зоны" extra={<span className="badge">эвристика Ривза</span>}>
         {d.comp.reevesStatus.length === 0 ? (
-          <Empty>Нужны «костные» замеры: запястье, лодыжка, колено, таз — и обхваты мышц.</Empty>
+          <Empty>
+            {male
+              ? 'Нужны «костные» замеры: запястье, лодыжка, колено, таз — и обхваты мышц.'
+              : 'Пропорции Ривза — мужская эвристика 1950-х, для женщин не используются. Смотрите тепловую карту на 3D-модели и объём по мышцам.'}
+          </Empty>
         ) : (
           <div className="scroll-x">
             <table className="tbl">

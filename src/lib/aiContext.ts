@@ -4,8 +4,9 @@ import type { WorkoutSet } from './hevy/hevy';
 import type { Derived } from './derive';
 import { addDays } from './calc/trend';
 import { weeklySetsPerMuscle } from './hevy/training';
-import { MUSCLE_RU, type Muscle } from './hevy/exercises';
+import { MUSCLE_RU, PATTERN_RU, type Muscle } from './hevy/exercises';
 import { MEASURE_LABELS } from './data/backup';
+import { activeFlags } from './health';
 
 const n = (x: number | null | undefined, d = 1) => (x == null || !Number.isFinite(x) ? '—' : x.toFixed(d));
 
@@ -18,7 +19,8 @@ export function buildAiContext(p: { days: number; ms: Measurement[]; sets: Worko
   L.push('Отвечай только на основе рецензируемых исследований (метаанализы, РКИ, систематические обзоры). Для каждого утверждения указывай PMID или DOI. Явно помечай неуверенность и случаи, когда данных мало или они перенесены с другой популяции. Не выдумывай ссылки. Не ставь диагнозов; при боли и симптомах советуй врача. Отвечай по-русски, кратко, таблицами.');
   L.push('');
   L.push(`ПРОФИЛЬ: ${s.sex === 'male' ? 'мужчина' : 'женщина'}, ${s.age} лет, рост ${n(d.comp.heightCm, 0)} см, стаж ${s.trainingYears} лет. Цель: ${s.goalWeightKg} кг, жир ${s.goalBodyFat} %, темп ${s.cutRatePct} %/нед.`);
-  if (s.healthFlags.hyperlordosis) L.push('Ограничение: гиперлордоз (самооценка) — избегаю осевой нагрузки без стабилизации кора.');
+  const flags = activeFlags(s.healthFlags);
+  if (flags.length) L.push(`Ограничения по здоровью (самооценка): ${flags.map((f) => f.label).join('; ')}.`);
   L.push(`ПЕРИОД: ${from} — ${d.now} (${days} дн.)`);
   L.push('');
   L.push('СОСТАВ ТЕЛА (последние значения):');
@@ -44,8 +46,9 @@ export function buildAiContext(p: { days: number; ms: Measurement[]; sets: Worko
     for (const [wk, row] of Object.entries(weekly).sort()) {
       L.push(`- неделя с ${wk}: ${Object.entries(row).map(([m, v]) => `${MUSCLE_RU[m as Muscle]} ${v}`).join(', ')}`);
     }
-    const k = d.keyLifts;
-    L.push(`Расчётный 1ПМ (Epley/Brzycki): жим ${n(k.bench?.value, 0)}, присед ${n(k.squat?.value, 0)}, становая ${n(k.deadlift?.value, 0)} кг`);
+    const pats = Object.values(d.patterns);
+    if (pats.length)
+      L.push(`Лучший расчётный 1ПМ по паттернам (Epley/Brzycki): ${pats.map((p) => `${PATTERN_RU[p!.pattern]} — ${p!.exercise} ${n(p!.e1rm, 0)} кг (${n(p!.ratio, 2)}× веса)`).join('; ')}`);
     const drops = d.strength.filter((x) => Math.abs(x.dropPct) > 2);
     if (drops.length) L.push(`Динамика 1ПМ (4 нед. против 8 до): ${drops.map((x) => `${x.exercise} ${x.dropPct > 0 ? '−' : '+'}${n(Math.abs(x.dropPct))} %`).join('; ')}`);
   }

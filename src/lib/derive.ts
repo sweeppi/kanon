@@ -17,10 +17,12 @@ import {
   type ButtResult,
 } from './calc/body';
 import { ema, linearSlope, lastDays, daysBetween, addDays, toMs, DAY, type Point } from './calc/trend';
+import { activityTdee, type ActivityBreakdown } from './calc/activity';
+import { activeFlags, FLAG_BY_KEY, type HealthFlag } from './health';
 import { mifflin, katchMcArdle, adaptiveTdee, cutDeficit, proteinTarget, forecastGoalDate, type AdaptiveTdee } from './calc/nutrition';
 import { computeLevel, type LevelResult } from './calc/levels';
-import { weeklySetsPerMuscle, weeklyTonnage, keyLiftMaxes, weekStart, isWorking, e1rmSeries } from './hevy/training';
-import { lookupExercise, type ExerciseInfo, type Muscle, MUSCLE_ZONE } from './hevy/exercises';
+import { weeklySetsPerMuscle, weeklyTonnage, patternStrength, strengthSummary, weekStart, isWorking, e1rmSeries, type PatternBest } from './hevy/training';
+import { lookupExercise, PATTERN_RU, type ExerciseInfo, type Muscle, type Pattern, MUSCLE_ZONE } from './hevy/exercises';
 import type { AdviceContext } from './advice/engine';
 import type { ZoneName } from './model/schema';
 
@@ -64,7 +66,9 @@ export function composition(values: Partial<Record<MeasureField, number>>, s: Se
   const navy = values.neck && values.waist ? navyBodyFat(s.sex, h, values.neck, values.waist, values.hips) : null;
   const bodyFat = values.bodyFatInput ?? navy;
   const lbm = values.weight && bodyFat != null ? leanMass(values.weight, bodyFat) : null;
-  const ideal = reevesIdeal({ wrist: values.wrist, ankle: values.ankle, knee: values.knee, hips: values.hips });
+  // Ривз и Casey Butt — мужские эвристики: для женщин не считаем, чтобы не вводить в заблуждение
+  const male = s.sex === 'male';
+  const ideal = male ? reevesIdeal({ wrist: values.wrist, ankle: values.ankle, knee: values.knee, hips: values.hips }) : {};
   const st = reevesStatus(
     { bicepsFlexed: values.bicepsFlexed, calf: values.calf, neck: values.neck, chest: values.chest, waist: values.waist, thigh: values.thigh },
     ideal,
@@ -82,7 +86,7 @@ export function composition(values: Partial<Record<MeasureField, number>>, s: Se
     reevesIdeal: ideal,
     reevesStatus: st,
     reevesPct: reevesScore(st),
-    butt: values.wrist && values.ankle ? caseyButt(h, values.wrist, values.ankle, 10) : null,
+    butt: male && values.wrist && values.ankle ? caseyButt(h, values.wrist, values.ankle, 10) : null,
   };
 }
 
@@ -122,6 +126,10 @@ export interface Targets {
   bmrFormula: 'Katch–McArdle' | 'Mifflin–St Jeor';
   tdee: number;
   tdeeSource: 'adaptive' | 'formula';
+  /** разбивка расхода по калькулятору активности (если режим 'calculator') */
+  activity: ActivityBreakdown | null;
+  /** формульный TDEE (без адаптивного) — для сравнения */
+  formulaTdee: number;
   adaptive: AdaptiveTdee | null;
   kcal: number;
   kcalOverridden: boolean;
@@ -140,8 +148,10 @@ export function nutritionTargets(c: Composition, s: Settings, weights: Point[], 
   const bmrFormula = c.lbm ? 'Katch–McArdle' : 'Mifflin–St Jeor';
   const bmr = c.lbm ? katchMcArdle(c.lbm) : mifflin(s.sex, w, c.heightCm, s.age);
   const adaptive = adaptiveTdee(weights, [...totals.values()].map((d) => ({ date: d.date, kcal: d.kcal })), 21);
-  const tdee = adaptive?.tdee ?? bmr * s.activityFactor;
-  const cutting = s.goalWeightKg < w - 0.5;
+  const activity = s.activityMode === 'calculator' ? activityTdee(bmr, w, s.activity) : null;
+  const formulaTdee = activity ? activity.tdee : bmr * s.activityFactor;
+  const tdee = adaptive?.tdee ?? formulaTdee;
+  const cutting = s.goalWeightKg > 0 && s.goalWeightKg < w - 0.5;
   const kcalAuto = cutting ? tdee - cutDeficit(w, s.cutRatePct) : tdee;
   const kcal = s.kcalOverride ?? Math.round(kcalAuto / 10) * 10;
   const pt = proteinTarget(w, c.lbm, cutting);
@@ -153,6 +163,8 @@ export function nutritionTargets(c: Composition, s: Settings, weights: Point[], 
     bmrFormula,
     tdee,
     tdeeSource: adaptive ? 'adaptive' : 'formula',
+    activity,
+    formulaTdee,
     adaptive,
     kcal,
     kcalOverridden: s.kcalOverride != null,
@@ -277,8 +289,8 @@ export interface Derived {
   forecast: ReturnType<typeof forecastGoalDate>;
   totals: Map<string, DayTotals>;
   level: LevelResult;
-  liftRatios: Partial<Record<'bench' | 'squat' | 'deadlift', number>>;
-  keyLifts: ReturnType<typeof keyLiftMaxes>;
+  patterns: Partial<Record<Pattern, PatternBest>>;
+  strengthSum: ReturnType<typeof strengthSummary>;
   weekly: ReturnType<typeof recentWeekly>;
   zoneStatus: Partial<Record<ZoneName, number>>;
   adviceCtx: AdviceContext;
@@ -306,18 +318,20 @@ export function deriveAll(
   const ratePctPerWeek = fit && curW ? ((fit.slope * 7) / curW) * 100 : null;
   const totals = dayTotals(foods);
   const targets = nutritionTargets(comp, s, weights, totals);
-  const forecast = forecastGoalDate(weights, s.goalWeightKg);
+  const forecast = s.goalWeightKg > 0 ? forecastGoalDate(weights, s.goalWeightKg) : null;
   const ov = overrideMap(overrides);
-  const keyLifts = keyLiftMaxes(sets, 120, ov);
-  const liftRatios: Derived['liftRatios'] = {};
-  if (values.weight) for (const [k, v] of Object.entries(keyLifts)) liftRatios[k as 'bench'] = v!.value / values.weight;
+  const patterns = patternStrength(sets, values.weight, s.sex, 120, ov);
+  const strengthSum = strengthSummary(patterns);
 
   const level = computeLevel({
     normFfmi: comp.normFfmi,
     bodyFat: comp.bodyFat,
     shoulderWaist: comp.sw,
     reevesPct: comp.reevesPct,
-    liftRatios: Object.keys(liftRatios).length ? liftRatios : undefined,
+    sex: s.sex,
+    strength: strengthSum
+      ? { score: strengthSum.score, patterns: strengthSum.patterns.map((p) => ({ label: PATTERN_RU[p.pattern], exercise: p.exercise, ratio: p.ratio, std: p.std, score: p.score })) }
+      : undefined,
     heightCm: comp.heightCm,
     weightKg: values.weight,
     waistCm: values.waist,
@@ -345,7 +359,25 @@ export function deriveAll(
   const recentFoodDays = [...totals.values()].filter((d) => daysBetween(d.date, now) < 7 && daysBetween(d.date, now) >= 0 && d.kcal > 0);
   const avg = (f: (d: DayTotals) => number) => (recentFoodDays.length >= 3 ? recentFoodDays.reduce((a, d) => a + f(d), 0) / recentFoodDays.length : undefined);
   const fourWeeksAgo = addDays(now, -28);
-  const axial = [...new Set(sets.filter((x) => x.start.slice(0, 10) >= fourWeeksAgo && isWorking(x) && lookupExercise(x.exercise, ov)?.axial).map((x) => x.exercise))];
+  // Упражнения за 4 недели, попадающие под включённые флаги здоровья
+  const recentEx = [...new Set(sets.filter((x) => x.start.slice(0, 10) >= fourWeeksAgo && isWorking(x)).map((x) => x.exercise))];
+  const flagged: Array<{ flag: HealthFlag; label: string; exercises: string[] }> = [];
+  for (const f of activeFlags(s.healthFlags)) {
+    const ex = recentEx.filter((e) => (lookupExercise(e, ov)?.tags ?? []).some((t) => f.tags.includes(t)));
+    if (ex.length) flagged.push({ flag: f.key, label: f.label, exercises: ex });
+  }
+  const BACK_FLAGS: HealthFlag[] = ['hyperlordosis', 'lowBackPain', 'disc', 'scoliosis'];
+  const backFlag = BACK_FLAGS.find((k) => s.healthFlags[k]);
+  const axial = backFlag ? recentEx.filter((e) => lookupExercise(e, ov)?.tags?.includes('axial')) : [];
+  // Баланс жимов и тяг (рабочие подходы за 4 недели)
+  let pushSets = 0;
+  let pullSets = 0;
+  for (const x of sets) {
+    if (x.start.slice(0, 10) < fourWeeksAgo || !isWorking(x)) continue;
+    const p = lookupExercise(x.exercise, ov)?.pattern;
+    if (p === 'hPush' || p === 'vPush') pushSets++;
+    if (p === 'hPull' || p === 'vPull') pullSets++;
+  }
   const w14 = weights.filter((p) => daysBetween(p.date, now) < 14 && daysBetween(p.date, now) >= 0);
   const reevesNames: Record<string, string> = { bicepsFlexed: 'бицепс', calf: 'голень', neck: 'шея', chest: 'грудь', waist: 'талия', thigh: 'бедро' };
 
@@ -354,7 +386,7 @@ export function deriveAll(
     weeklyFrequency: weekly.freq,
     weightRatePctPerWeek: ratePctPerWeek ?? undefined,
     weightKg: values.weight,
-    cutting: targets?.cutting ?? s.goalWeightKg < (values.weight ?? 0),
+    cutting: targets?.cutting ?? (s.goalWeightKg > 0 && s.goalWeightKg < (values.weight ?? 0)),
     proteinAvg: avg((d) => d.protein),
     proteinTargetMin: targets ? (targets.proteinOverridden ? targets.protein : targets.proteinRange[0]) : undefined,
     proteinMealsAvg: avg((d) => d.proteinMeals),
@@ -364,8 +396,11 @@ export function deriveAll(
     e1rmStagnant: strength.map((x) => ({ exercise: x.exercise, weeks: x.weeksSinceBest })),
     waistToHeight: comp.whtr ?? undefined,
     heightCm: comp.heightCm,
-    hyperlordosis: s.healthFlags.hyperlordosis,
+    hyperlordosis: !!backFlag,
+    backFlagLabel: backFlag ? FLAG_BY_KEY[backFlag].label : undefined,
     axialExercises: axial,
+    flaggedExercises: flagged.filter((f) => !(BACK_FLAGS.includes(f.flag) && f.exercises.every((e) => axial.includes(e)))),
+    pushPull: pushSets + pullSets >= 12 ? { push: pushSets, pull: pullSets, kyphosis: !!s.healthFlags.kyphosis } : undefined,
     weighInsPerWeek: weights.length ? w14.length / 2 : undefined,
     normFfmi: comp.normFfmi ?? undefined,
     reevesLagging: comp.reevesStatus.map((x) => ({ name: reevesNames[x.key] ?? x.key, pct: x.pct })),
@@ -388,7 +423,7 @@ export function deriveAll(
   };
   const foodWeek = (wk: string, f: (d: DayTotals) => number) => mean([...totals.values()].filter((d) => inWeek(d.date, wk) && d.kcal > 0).map(f));
   const weekCompare: WeekCompare[] = [
-    { label: 'Средний вес', thisWeek: mean(weights.filter((p) => inWeek(p.date, thisWk)).map((p) => p.value)), lastWeek: mean(weights.filter((p) => inWeek(p.date, lastWk)).map((p) => p.value)), unit: 'кг', betterWhen: s.goalWeightKg < (values.weight ?? 0) ? 'down' : 'none' },
+    { label: 'Средний вес', thisWeek: mean(weights.filter((p) => inWeek(p.date, thisWk)).map((p) => p.value)), lastWeek: mean(weights.filter((p) => inWeek(p.date, lastWk)).map((p) => p.value)), unit: 'кг', betterWhen: s.goalWeightKg > 0 && s.goalWeightKg < (values.weight ?? 0) ? 'down' : 'none' },
     { label: 'Ккал в день', thisWeek: foodWeek(thisWk, (d) => d.kcal), lastWeek: foodWeek(lastWk, (d) => d.kcal), unit: 'ккал', betterWhen: 'none' },
     { label: 'Белок в день', thisWeek: foodWeek(thisWk, (d) => d.protein), lastWeek: foodWeek(lastWk, (d) => d.protein), unit: 'г', betterWhen: 'up' },
     { label: 'Рабочие подходы', thisWeek: setsCount(thisWk), lastWeek: setsCount(lastWk), unit: '', betterWhen: 'up' },
@@ -407,8 +442,8 @@ export function deriveAll(
     forecast,
     totals,
     level,
-    liftRatios,
-    keyLifts,
+    patterns,
+    strengthSum,
     weekly,
     zoneStatus,
     adviceCtx,

@@ -104,6 +104,7 @@ export const MEASURE_LABELS: Record<string, string> = {
   ankle: 'Лодыжка',
   bicepsFlexed: 'Бицепс в напряжении',
   bicepsRelaxed: 'Бицепс расслабл.',
+  tricepsFlexed: 'Трицепс в напряжении',
   forearm: 'Предплечье',
   wrist: 'Запястье',
   note: 'Заметка',

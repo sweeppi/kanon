@@ -14,8 +14,9 @@ import {
 import { epley, brzycki, e1rm, dots } from '../src/lib/calc/strength';
 import { mifflin, katchMcArdle, adaptiveTdee, cutDeficit, proteinTarget, forecastGoalDate, proteinPer100Rub } from '../src/lib/calc/nutrition';
 import { ema, movingAverage, linearSlope, addDays, type Point } from '../src/lib/calc/trend';
-import { computeLevel, strengthScore } from '../src/lib/calc/levels';
-import { LEVELS } from '../src/lib/calc/levels.config';
+import { computeLevel } from '../src/lib/calc/levels';
+import { LEVELS, LEVELS_BY_SEX } from '../src/lib/calc/levels.config';
+const ELITE = { score: 100, patterns: [] };
 
 describe('% жира ВМС США', () => {
   it('мужчина 180 см, шея 38, талия 85 → 16.1 % (расчёт вручную)', () => {
@@ -177,16 +178,16 @@ describe('Уровни', () => {
       bodyFat: 9,
       shoulderWaist: 1.65,
       reevesPct: 98,
-      liftRatios: { bench: 1.75, squat: 2.25, deadlift: 2.75 },
+      strength: ELITE,
     });
     expect(god.level).toBe('Греческий бог');
     // высокий балл, но жир 13 % → не бог
-    const almost = computeLevel({ normFfmi: 25, bodyFat: 13, shoulderWaist: 1.65, reevesPct: 98, liftRatios: { bench: 1.75, squat: 2.25, deadlift: 2.75 } });
+    const almost = computeLevel({ normFfmi: 25, bodyFat: 13, shoulderWaist: 1.65, reevesPct: 98, strength: ELITE });
     expect(almost.level).not.toBe('Греческий бог');
     expect(almost.requirements.some((r) => /жир/i.test(r.text))).toBe(true);
   });
   it('типичный тренированный на сушке — средний уровень, есть подсказки и слабое звено', () => {
-    const r = computeLevel({ normFfmi: 21.5, bodyFat: 16, shoulderWaist: 1.42, reevesPct: 88, liftRatios: { bench: 1.1 }, heightCm: 180, weightKg: 80, waistCm: 85, shouldersCm: 121 });
+    const r = computeLevel({ normFfmi: 21.5, bodyFat: 16, shoulderWaist: 1.42, reevesPct: 88, strength: { score: 35, patterns: [{ label: 'Жим горизонтальный', exercise: 'Chest Press (Machine)', ratio: 1.05, std: [0.7, 1.7], score: 35 }] }, heightCm: 180, weightKg: 80, waistCm: 85, shouldersCm: 121 });
     expect(r.levelIndex).toBeGreaterThanOrEqual(2);
     expect(r.levelIndex).toBeLessThanOrEqual(5);
     expect(r.weakest).not.toBeNull();
@@ -197,9 +198,19 @@ describe('Уровни', () => {
     expect(r.level).toBe('Старт');
     expect(r.missing.length).toBe(5);
   });
-  it('силовой балл', () => {
-    expect(strengthScore({ bench: 1.75 })).toBe(100);
-    expect(strengthScore({ bench: 0.75 })).toBe(0);
-    expect(strengthScore({})).toBeNull();
+  it('женская шкала: свои пороги и «Греческая богиня» только у потолка', () => {
+    for (let i = 1; i < LEVELS_BY_SEX.female.length; i++) expect(LEVELS_BY_SEX.female[i].minScore).toBeGreaterThan(LEVELS_BY_SEX.female[i - 1].minScore);
+    const goddess = computeLevel({ sex: 'female', normFfmi: 21, bodyFat: 19, shoulderWaist: 1.45, strength: ELITE });
+    expect(goddess.level).toBe('Греческая богиня');
+    expect(goddess.missing).not.toContain('reeves'); // Ривз для женщин не применяется
+    const typical = computeLevel({ sex: 'female', normFfmi: 16.5, bodyFat: 27, shoulderWaist: 1.3 });
+    expect(typical.levelIndex).toBeGreaterThanOrEqual(2);
+    expect(typical.levelIndex).toBeLessThanOrEqual(4);
+    // мужские цифры у женщины не дают «бога»: те же 25 FFMI считаются, но жир 9 % ниже минимума 16
+    expect(computeLevel({ sex: 'female', normFfmi: 25, bodyFat: 9, shoulderWaist: 1.6, strength: ELITE }).level).not.toBe('Греческая богиня');
+  });
+  it('подсказки по силе называют конкретное упражнение', () => {
+    const r = computeLevel({ normFfmi: 25, bodyFat: 9, shoulderWaist: 1.65, reevesPct: 98, weightKg: 80, strength: { score: 60, patterns: [{ label: 'Присед / жим ногами', exercise: 'Leg Press (Machine)', ratio: 2.5, std: [1.5, 4], score: 40 }] } });
+    expect(r.requirements.some((x) => x.text.includes('Leg Press'))).toBe(true);
   });
 });

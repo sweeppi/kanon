@@ -80,6 +80,9 @@ export interface AdviceContext {
   waistToHeight?: number;
   heightCm?: number;
   hyperlordosis?: boolean;
+  backFlagLabel?: string;
+  flaggedExercises?: Array<{ flag: string; label: string; exercises: string[] }>;
+  pushPull?: { push: number; pull: number; kyphosis: boolean };
   axialExercises?: string[];
   weighInsPerWeek?: number;
   normFfmi?: number;
@@ -182,7 +185,7 @@ export function evaluateCondition(c: Condition, ctx: AdviceContext): Match {
     }
     case 'axialWithLordosis': {
       if (!ctx.hyperlordosis || !ctx.axialExercises?.length) return null;
-      return { vars: { value: ctx.axialExercises.slice(0, 4).join(', ') }, priority: 5 };
+      return { vars: { value: ctx.axialExercises.slice(0, 4).join(', '), flag: ctx.backFlagLabel ?? 'спина' }, priority: 5 };
     }
     case 'weighInsPerWeekBelow': {
       if (ctx.weighInsPerWeek === undefined || ctx.weighInsPerWeek >= (c.min as number)) return null;
@@ -200,6 +203,16 @@ export function evaluateCondition(c: Condition, ctx: AdviceContext): Match {
     case 'shoulderWaistBelow': {
       if (ctx.shoulderWaist === undefined || ctx.shoulderWaist >= (c.value as number)) return null;
       return { vars: { value: ctx.shoulderWaist.toFixed(2).replace('.', ',') }, priority: 2 };
+    }
+    case 'healthFlagExercises': {
+      const f = ctx.flaggedExercises?.filter((x) => x.exercises.length);
+      if (!f?.length) return null;
+      return { vars: { value: f.map((x) => `${x.label}: ${x.exercises.slice(0, 3).join(', ')}`).join('; ') }, priority: 4 };
+    }
+    case 'pushPullRatio': {
+      const pp = ctx.pushPull;
+      if (!pp || pp.push <= pp.pull * (c.ratio as number)) return null;
+      return { vars: { push: pp.push, pull: pp.pull, extra: pp.kyphosis ? ' При сутулости это особенно важно.' : '' }, priority: pp.kyphosis ? 4 : 2 };
     }
     case 'backupOlderThan': {
       if (ctx.daysSinceBackup === undefined) return null;

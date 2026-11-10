@@ -97,6 +97,15 @@ const measureMap: Record<string, string> = {
   ankle: 'ankle-circ',
   knee: 'knee-circ',
 };
+// Пол: (среднее женских − среднее мужских) молодых таргетов трёх рас MakeHuman
+{
+  const scaleT = (t: Target, k: number): Target => new Map([...t].map(([i, d]) => [i, [d[0] * k, d[1] * k, d[2] * k] as [number, number, number]]));
+  const races = ['caucasian', 'african', 'asian'];
+  const fem = sumTargets(...races.map((r) => scaleT(T(`${r}-female-young`), 1 / 3)));
+  const mal = sumTargets(...races.map((r) => scaleT(T(`${r}-male-young`), 1 / 3)));
+  morphSources.sex_incr = diffTargets(fem, mal);
+  morphSources.sex_decr = new Map(); // «обратный пол» не нужен — пустой морф, почти ничего не весит
+}
 for (const [k, file] of Object.entries(measureMap))
   for (const d of ['incr', 'decr']) morphSources[`${k}_${d}`] = T(`measure-${file}-${d}`);
 for (const d of ['incr', 'decr'])
@@ -290,7 +299,7 @@ const slices: SliceDef[] = [
   measureDef(
     { key: 'shoulders', a: 'pelvis', b: 'neck', normal: 'up', radius: 0.4, segNames: ['torso', 'clav-l', 'clav-r', 'delt-l', 'delt-r'] },
     [0, 1],
-    tY(J('l-shoulder')[1] - 0.03),
+    tY(J('l-shoulder')[1] - 0.01),
   ),
   measureDef({ key: 'chest', a: 'pelvis', b: 'neck', normal: 'up', radius: 0.3, lateral: 0.95, segNames: TORSO }, [0.6, 0.85], 'max'),
   measureDef({ key: 'waist', a: 'pelvis', b: 'neck', normal: 'up', radius: 0.3, lateral: 0.95, segNames: TORSO }, [0, 1], tY(navelY)),

@@ -2,6 +2,8 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { WorkoutSet } from '../hevy/hevy';
 import type { ExerciseInfo } from '../hevy/exercises';
+import type { HealthFlags } from '../health';
+import { DEFAULT_ACTIVITY, type ActivityProfile } from '../calc/activity';
 
 export const MEASURE_FIELDS = [
   'weight',
@@ -18,6 +20,7 @@ export const MEASURE_FIELDS = [
   'ankle',
   'bicepsFlexed',
   'bicepsRelaxed',
+  'tricepsFlexed',
   'forearm',
   'wrist',
 ] as const;
@@ -37,7 +40,10 @@ export interface FoodEntry {
   sugar?: number;
   priceRub?: number;
   grams?: number;
-  source?: 'manual' | 'template' | 'off';
+  source?: 'manual' | 'template' | 'off' | 'import' | 'copy';
+  /** клетчатка/сахар оценены автоматически (не с этикетки) */
+  fiberEstimated?: boolean;
+  sugarEstimated?: boolean;
 }
 
 export interface FoodTemplate {
@@ -76,8 +82,11 @@ export interface Settings {
   trainingYears: number;
   kcalOverride: number | null;
   proteinOverride: number | null;
+  /** 'calculator' — по шагам и тренировкам; 'manual' — свой коэффициент activityFactor */
+  activityMode: 'calculator' | 'manual';
   activityFactor: number;
-  healthFlags: { hyperlordosis: boolean };
+  activity: ActivityProfile;
+  healthFlags: HealthFlags;
   theme: 'dark' | 'light' | 'system';
   goalMeasurements: Partial<Record<MeasureField, number>>;
   lastBackupAt: string | null;
@@ -87,16 +96,18 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   sex: 'male',
-  age: 18,
-  heightCm: 180,
-  goalWeightKg: 70,
-  goalBodyFat: 11,
+  age: 25,
+  heightCm: 175,
+  goalWeightKg: 0, // 0 — цель не задана (заполняется в онбординге)
+  goalBodyFat: 12,
   cutRatePct: 0.7,
-  trainingYears: 5,
+  trainingYears: 1,
   kcalOverride: null,
   proteinOverride: null,
+  activityMode: 'calculator',
   activityFactor: 1.55,
-  healthFlags: { hyperlordosis: true },
+  activity: DEFAULT_ACTIVITY,
+  healthFlags: {},
   theme: 'dark',
   goalMeasurements: {},
   lastBackupAt: null,

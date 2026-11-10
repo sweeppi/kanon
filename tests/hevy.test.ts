@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { parseHevyWorkouts, parseHevyMeasurements, previewImport, FormatError } from '../src/lib/hevy/hevy';
 import { parseCsv, detectDelimiter, toCsv, parseNum } from '../src/lib/hevy/csv';
 import { parseHevyDate, detectDayOrder } from '../src/lib/hevy/dates';
-import { weeklySetsPerMuscle, weeklyTonnage, personalRecords, keyLiftMaxes, e1rmSeries, weekStart } from '../src/lib/hevy/training';
+import { weeklySetsPerMuscle, weeklyTonnage, personalRecords, patternStrength, strengthSummary, e1rmSeries, weekStart } from '../src/lib/hevy/training';
 import { lookupExercise } from '../src/lib/hevy/exercises';
 
 // Все файлы — фиктивные, реальные данные пользователя в тестах не используются.
@@ -131,16 +131,20 @@ describe('Аналитика тренировок', () => {
     const pr = personalRecords(sets).find((p) => p.exercise === 'Bench Press (Barbell)')!;
     expect(pr.heaviest).toBe(80);
     expect(pr.bestE1rm).toBeCloseTo((80 * 1.2 + (80 * 36) / 31) / 2, 3);
-    const k = keyLiftMaxes(sets);
-    expect(k.bench?.value).toBeGreaterThan(90);
-    expect(k.squat?.value).toBeGreaterThan(110);
-    expect(k.deadlift?.value).toBeGreaterThan(150);
+    const k = patternStrength(sets, 80);
+    expect(k.hPush?.e1rm).toBeGreaterThan(90);
+    expect(k.squat?.e1rm).toBeGreaterThan(110);
+    expect(k.hinge?.e1rm).toBeGreaterThan(150);
+    // подтягивания с весом 0 = вес тела: (80+0)·(1+10/30)… / 80 > 1
+    expect(k.vPull?.exercise).toBe('Pull Up');
+    expect(k.vPull!.ratio).toBeGreaterThan(1.2);
+    expect(strengthSummary(k)!.score).toBeGreaterThan(0);
     expect(e1rmSeries(sets, 'Squat (Barbell)')).toHaveLength(1);
   });
   it('справочник упражнений и осевая нагрузка', () => {
     expect(lookupExercise('Squat (Barbell)')!.axial).toBe(true);
     expect(lookupExercise('Leg Press (Machine)')!.axial).toBeFalsy();
-    expect(lookupExercise('Romanian Deadlift (Barbell)')!.lift).toBeUndefined();
+    expect(lookupExercise('Romanian Deadlift (Barbell)')!.pattern).toBe('hinge');
     expect(lookupExercise('Chest Supported Incline Row (Dumbbell)')!.axial).toBeFalsy();
     expect(lookupExercise('Неизвестное упражнение')).toBeNull();
     expect(lookupExercise('X', { X: { primary: ['calves'], secondary: [] } })!.primary).toEqual(['calves']);

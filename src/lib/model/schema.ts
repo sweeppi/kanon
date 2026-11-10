@@ -21,6 +21,7 @@ export type ZoneName = keyof typeof ZONES;
  * p > 0 → вес морфа `${name}_incr` = p, p < 0 → вес `${name}_decr` = −p. Так устроены модификаторы MakeHuman.
  */
 export const MORPH_PARAMS = [
+  'sex', // 0 — мужчина (база), 1 — женщина (средний женский таргет MakeHuman)
   'height',
   'muscle',
   'fat',

@@ -7,6 +7,11 @@ import { today } from '../lib/derive';
 import { proteinPer100Rub } from '../lib/calc/nutrition';
 import { searchOff, type OffProduct } from '../lib/off';
 import { addDays, daysBetween } from '../lib/calc/trend';
+import { estimateFiberSugar } from '../lib/calc/foodEstimate';
+import { readTable, type Table, type Mapping } from '../lib/import/table';
+import { detectFoods, parseFoodTable, foodKey, FOOD_IMPORT_FIELDS } from '../lib/import/foods';
+import { MappingEditor } from '../components/ImportMapping';
+import { pickFile } from '../components/ui';
 
 type Draft = Omit<FoodEntry, 'id' | 'date'>;
 const EMPTY: Draft = { name: '', kcal: 0, protein: 0, fat: 0, carbs: 0 };
@@ -26,12 +31,58 @@ export function Nutrition() {
     [d.totals, d.now],
   );
 
+  const [imp, setImp] = useState<{ name: string; table: Table; mapping: Mapping } | null>(null);
+  const [copyFrom, setCopyFrom] = useState(addDays(today(), -1));
+  const estimate = estimateFiberSugar(draft.name, draft.carbs, draft.fiber, draft.sugar);
+
+  /** Клетчатка и сахар: если не указаны — оцениваем по категории продукта (помечаем «≈»). */
+  const withEstimates = (e: Draft): Draft => {
+    const fs = estimateFiberSugar(e.name, e.carbs, e.fiber, e.sugar);
+    return { ...e, fiber: fs.fiber, sugar: fs.sugar, fiberEstimated: fs.fiberEstimated || undefined, sugarEstimated: fs.sugarEstimated || undefined };
+  };
+
   const add = async (e: Draft, source: FoodEntry['source'] = 'manual') => {
     if (!e.name.trim()) return toast('Назовите блюдо');
     if (!(e.kcal >= 0)) return toast('Проверьте калории');
-    await getDb().foods.add({ ...e, name: e.name.trim(), date, source });
-    if (asTemplate && source === 'manual') await getDb().templates.add({ ...e, name: e.name.trim() });
+    const full = withEstimates({ ...e, name: e.name.trim() });
+    await getDb().foods.add({ ...full, date, source });
+    if (asTemplate && source === 'manual') await getDb().templates.add({ ...full });
     toast(`Добавлено: ${e.name}`);
+  };
+
+  const copyDay = async () => {
+    const src = foods.filter((f) => f.date === copyFrom);
+    if (!src.length) return toast(`За ${fmtDate(copyFrom)} записей нет`);
+    await getDb().foods.bulkAdd(src.map(({ id: _id, ...f }) => ({ ...f, date, source: 'copy' as const })));
+    toast(`Скопировано ${src.length} записей из ${fmtDate(copyFrom)}`);
+  };
+
+  const parsedImport = useMemo(() => {
+    if (!imp) return null;
+    try {
+      const r = parseFoodTable(imp.table, imp.mapping);
+      const existing = new Set(foods.map(foodKey));
+      const fresh = r.rows.filter((x) => !existing.has(foodKey(x)));
+      return { ...r, fresh, days: new Set(r.rows.map((x) => x.date)).size, error: null as string | null };
+    } catch (e) {
+      return { rows: [], fresh: [], errors: [] as string[], days: 0, error: (e as Error).message };
+    }
+  }, [imp, foods]);
+  const startImport = async () => {
+    const f = await pickFile('.csv,.tsv,.txt,text/csv');
+    if (!f) return;
+    try {
+      const table = readTable(await f.text());
+      setImp({ name: f.name, table, mapping: detectFoods(table) });
+    } catch (e) {
+      toast(`Ошибка чтения: ${(e as Error).message}`);
+    }
+  };
+  const confirmImport = async () => {
+    if (!parsedImport?.fresh.length) return;
+    await getDb().foods.bulkAdd(parsedImport.fresh);
+    toast(`Импортировано записей: ${parsedImport.fresh.length}`);
+    setImp(null);
   };
 
   return (
@@ -53,7 +104,9 @@ export function Nutrition() {
               BMR {fmt(t.bmr, 0)} ккал ({t.bmrFormula}). TDEE {fmt(t.tdee, 0)} ккал —{' '}
               {t.tdeeSource === 'adaptive'
                 ? `адаптивный: ${t.adaptive!.loggedDays} дней записей за ${t.adaptive!.days} дн., тренд ${fmt(t.adaptive!.trendKgPerWeek, 2)} кг/нед (≈ 7700 ккал на кг — приближение)`
-                : `по формуле × активность ${settings.activityFactor}. Адаптивный появится после 2–3 недель взвешиваний и записей еды`}
+                : t.activity
+                  ? `по активности: база ${fmt(t.activity.base, 0)} + шаги ${fmt(t.activity.walking, 0)} + тренировки ${fmt(t.activity.training, 0)} + работа стоя ${fmt(t.activity.standing, 0)} (≈ ×${fmt(t.activity.factor, 2)} от BMR). Адаптивный появится после 2–3 недель взвешиваний и записей еды`
+                  : `по формуле × активность ${settings.activityFactor}. Адаптивный появится после 2–3 недель взвешиваний и записей еды`}
               . Белок: {t.proteinBasis} (Morton 2018; Helms 2014). Цели можно переопределить в настройках.
             </p>
             {d.forecast && (
@@ -69,6 +122,21 @@ export function Nutrition() {
             )}
           </>
         )}
+      </Card>
+
+      <Card title="Быстро заполнить">
+        <div className="row">
+          <button className="btn" onClick={startImport}>
+            Импорт CSV
+          </button>
+          <span className="tiny muted">MyFitnessPal, Cronometer, FatSecret или своя таблица</span>
+        </div>
+        <div className="row" style={{ marginTop: 8 }}>
+          <input type="date" value={copyFrom} max={today()} onChange={(e) => setCopyFrom(e.target.value)} aria-label="Из какого дня копировать" style={{ width: 160 }} />
+          <button className="btn" onClick={copyDay} disabled={copyFrom === date}>
+            Повторить день → {fmtDate(date)}
+          </button>
+        </div>
       </Card>
 
       <Card
@@ -106,7 +174,7 @@ export function Nutrition() {
               </div>
             ))}
             <div className="tiny muted">
-              Клетчатка {fmt(day?.fiber ?? 0, 0)} г (ориентир 25–29) · сахар {fmt(day?.sugar ?? 0, 0)} г · стоимость {fmt(day?.priceRub ?? 0, 0)} ₽
+              Клетчатка {entries.some((e) => e.fiberEstimated) ? '≈ ' : ''}{fmt(day?.fiber ?? 0, 0)} г (ориентир 25–29) · сахар {entries.some((e) => e.sugarEstimated) ? '≈ ' : ''}{fmt(day?.sugar ?? 0, 0)} г · стоимость {fmt(day?.priceRub ?? 0, 0)} ₽
               {day && day.priceRub > 0 && ` · белок на 100 ₽: ${fmt(proteinPer100Rub(day.protein, day.priceRub), 1)} г`}
             </div>
           </div>
@@ -122,6 +190,8 @@ export function Nutrition() {
                   {e.grams ? <span className="muted"> · {e.grams} г</span> : null}
                   <div className="tiny muted">
                     {e.kcal} ккал · Б {fmt(e.protein, 0)} · Ж {fmt(e.fat, 0)} · У {fmt(e.carbs, 0)}
+                    {e.fiber != null && ` · кл. ${e.fiberEstimated ? '≈' : ''}${fmt(e.fiber, 0)}`}
+                    {e.sugar != null && ` · сах. ${e.sugarEstimated ? '≈' : ''}${fmt(e.sugar, 0)}`}
                     {e.priceRub ? ` · ${e.priceRub} ₽ · ${fmt(proteinPer100Rub(e.protein, e.priceRub), 1)} г белка/100 ₽` : ''}
                   </div>
                 </div>
@@ -151,14 +221,17 @@ export function Nutrition() {
           <NumField label="Белок" unit="г" min={0} max={500} value={draft.protein || undefined} onChange={(v) => setDraft({ ...draft, protein: v ?? 0 })} />
           <NumField label="Жиры" unit="г" min={0} max={500} value={draft.fat || undefined} onChange={(v) => setDraft({ ...draft, fat: v ?? 0 })} />
           <NumField label="Углев." unit="г" min={0} max={1000} value={draft.carbs || undefined} onChange={(v) => setDraft({ ...draft, carbs: v ?? 0 })} />
-          <NumField label="Клетч." unit="г" min={0} max={200} value={draft.fiber} onChange={(v) => setDraft({ ...draft, fiber: v })} />
-          <NumField label="Сахар" unit="г" min={0} max={500} value={draft.sugar} onChange={(v) => setDraft({ ...draft, sugar: v })} />
+          <NumField label="Клетч." unit="г" min={0} max={200} value={draft.fiber} placeholder={draft.carbs ? `≈ ${fmt(estimate.fiber, 1)} авто` : 'авто'} onChange={(v) => setDraft({ ...draft, fiber: v })} />
+          <NumField label="Сахар" unit="г" min={0} max={500} value={draft.sugar} placeholder={draft.carbs ? `≈ ${fmt(estimate.sugar, 1)} авто` : 'авто'} onChange={(v) => setDraft({ ...draft, sugar: v })} />
           <NumField label="Цена" unit="₽" min={0} max={100000} value={draft.priceRub} onChange={(v) => setDraft({ ...draft, priceRub: v })} />
           <NumField label="Вес" unit="г" min={0} max={5000} value={draft.grams} onChange={(v) => setDraft({ ...draft, grams: v })} />
         </div>
         {!draft.kcal && draft.protein + draft.fat + draft.carbs > 0 && (
           <p className="tiny muted">Ккал по БЖУ: {Math.round(draft.protein * 4 + draft.fat * 9 + draft.carbs * 4)} — <button className="btn btn-small" onClick={() => setDraft({ ...draft, kcal: Math.round(draft.protein * 4 + draft.fat * 9 + draft.carbs * 4) })}>подставить</button></p>
         )}
+        <p className="tiny muted" style={{ marginTop: 6 }}>
+          Клетчатку и сахар можно не заполнять: оценим по углеводам и типу продукта («{estimate.category}») — в дневнике будет пометка «≈».
+        </p>
         <label className="row tiny" style={{ marginTop: 8 }}>
           <input type="checkbox" checked={asTemplate} onChange={(e) => setAsTemplate(e.target.checked)} /> Сохранить как шаблон
         </label>
@@ -214,6 +287,36 @@ export function Nutrition() {
           <LineChart unit="ккал" target={t.kcal} series={[{ label: 'Ккал за день', points: kcalSeries, color: 'var(--accent)', dots: true }]} />
         </Card>
       )}
+
+      <Sheet open={!!imp} onClose={() => setImp(null)} title="Импорт питания">
+        {imp && parsedImport && (
+          <div className="stack">
+            <p className="tiny">
+              Файл: <b>{imp.name}</b> · строк: {imp.table.rows.length}. Колонки распознаются автоматически — проверьте сопоставление. Клетчатка и сахар, если их нет в файле, будут оценены («≈»).
+            </p>
+            <details open={!!parsedImport.error}>
+              <summary>Сопоставление колонок</summary>
+              <MappingEditor table={imp.table} fields={FOOD_IMPORT_FIELDS} mapping={imp.mapping} onChange={(m) => setImp({ ...imp, mapping: m })} />
+            </details>
+            {parsedImport.error ? (
+              <p className="field-error">{parsedImport.error}</p>
+            ) : (
+              <p>
+                Записей: <b>{parsedImport.rows.length}</b> за {parsedImport.days} дн. Новых: <b style={{ color: 'var(--good)' }}>{parsedImport.fresh.length}</b>, уже есть: {parsedImport.rows.length - parsedImport.fresh.length}.
+              </p>
+            )}
+            {parsedImport.rows[0] && (
+              <p className="tiny muted">
+                Пример: {fmtDate(parsedImport.rows[0].date)} · {parsedImport.rows[0].name} · {parsedImport.rows[0].kcal} ккал · Б {fmt(parsedImport.rows[0].protein, 0)}
+              </p>
+            )}
+            {parsedImport.errors.length > 0 && <p className="tiny" style={{ color: 'var(--warn)' }}>Пропущено строк: {parsedImport.errors.length}. {parsedImport.errors.slice(0, 3).join('; ')}</p>}
+            <button className="btn btn-primary btn-block" disabled={!parsedImport.fresh.length} onClick={confirmImport}>
+              {parsedImport.fresh.length ? `Добавить ${parsedImport.fresh.length}` : 'Нового нет'}
+            </button>
+          </div>
+        )}
+      </Sheet>
 
       <OffSearch open={searchOpen} onClose={() => setSearchOpen(false)} onAdd={(e) => add(e, 'off')} />
     </div>

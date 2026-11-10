@@ -119,6 +119,13 @@ describe.skipIf(!existsSync(GLB))('Калибровка реальной мод�
     expect(ms).toBeLessThan(5000);
   });
 
+  it('фиктивная женщина 165 см (морф пола): обхваты в пределах 2 см', () => {
+    const targets = { height: 165, neck: 32, shoulders: 105, chest: 90, waist: 68, hips: 96, biceps: 27, forearm: 23, wrist: 15, thigh: 56, knee: 35, calf: 35, ankle: 21 };
+    const cal = calibrate(rig, targets, { sex: 1, muscle: -0.2, fat: 0 });
+    for (const [k, v] of Object.entries(cal.residuals)) expect(Math.abs(v!), `${k}: ${v}`).toBeLessThanOrEqual(2);
+    expect(cal.params.sex).toBe(1);
+  });
+
   it('нереалистичный замер честно помечается как вне допуска', () => {
     const cal = calibrate(rig, { height: 180, biceps: 70 });
     expect(cal.outOfTolerance).toContain('biceps');

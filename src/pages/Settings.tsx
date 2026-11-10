@@ -7,9 +7,10 @@ import { buildIcs, defaultReminders } from '../lib/ics';
 import { today } from '../lib/derive';
 import { isIOS, isStandalone } from '../lib/platform';
 import { FIELDS } from '../lib/measureMeta';
+import { ActivityEditor, HealthEditor } from '../components/ProfileEditors';
 
 export function SettingsPage() {
-  const { settings: s, setSettings, ms, sets } = useStore();
+  const { settings: s, setSettings, ms, sets, d } = useStore();
   const toast = useToast();
   const set = (p: Partial<Settings>) => void setSettings(p);
   const [persisted, setPersisted] = useState<boolean | null>(null);
@@ -81,13 +82,20 @@ export function SettingsPage() {
           <NumField label="Возраст" unit="лет" min={14} max={90} step={1} value={s.age} onChange={(v) => v && set({ age: v })} />
           <NumField label="Рост" unit="см" min={120} max={230} value={s.heightCm} onChange={(v) => v && set({ heightCm: v })} hint="Если рост есть в замерах — берётся оттуда" />
           <NumField label="Стаж" unit="лет" min={0} max={50} value={s.trainingYears} onChange={(v) => v !== undefined && set({ trainingYears: v })} />
-          <NumField label="Активность (×BMR)" min={1.1} max={2.2} value={s.activityFactor} onChange={(v) => v && set({ activityFactor: v })} hint="1,2 сидячий · 1,55 3–5 тренировок · 1,725 очень активный" />
         </div>
+      </Card>
+
+      <button className="btn btn-small" style={{ marginBottom: 12 }} onClick={() => set({ onboarded: false })}>
+        Пройти настройку профиля заново
+      </button>
+
+      <Card title="Активность">
+        <ActivityEditor s={s} set={set} weightKg={d.values.weight} />
       </Card>
 
       <Card title="Цели">
         <div className="grid2">
-          <NumField label="Целевой вес" unit="кг" min={35} max={200} value={s.goalWeightKg} onChange={(v) => v && set({ goalWeightKg: v })} />
+          <NumField label="Целевой вес" unit="кг" min={30} max={250} value={s.goalWeightKg || undefined} onChange={(v) => set({ goalWeightKg: v ?? 0 })} hint="Пусто — без цели по весу" />
           <NumField label="Целевой % жира" unit="%" min={4} max={40} value={s.goalBodyFat} onChange={(v) => v && set({ goalBodyFat: v })} />
           <NumField label="Темп сушки" unit="%/нед" min={0.25} max={1.5} step={0.05} value={s.cutRatePct} onChange={(v) => v && set({ cutRatePct: v })} hint="Рекомендуют 0,5–1 % (Helms 2014)" />
           <div />
@@ -118,14 +126,8 @@ export function SettingsPage() {
         </details>
       </Card>
 
-      <Card title="Здоровье">
-        <label className="row">
-          <input type="checkbox" checked={s.healthFlags.hyperlordosis} onChange={(e) => set({ healthFlags: { ...s.healthFlags, hyperlordosis: e.target.checked } })} />
-          <span>
-            Гиперлордоз
-            <div className="tiny muted">Упражнения с осевой нагрузкой на поясницу помечаются ⚠, предлагаются альтернативы и стабилизация кора. Это подсказка, а не диагноз.</div>
-          </span>
-        </label>
+      <Card title="Здоровье и ограничения">
+        <HealthEditor s={s} set={set} />
       </Card>
 
       <Card title="Оформление">

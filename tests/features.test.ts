@@ -3,7 +3,8 @@ import { buildIcs, defaultReminders } from '../src/lib/ics';
 import { mapProduct } from '../src/lib/off';
 import { deriveAll, plateauWeeks, streak, latestValues, goalMeasurements } from '../src/lib/derive';
 import { buildAiContext } from '../src/lib/aiContext';
-import { DEFAULT_SETTINGS, type Measurement } from '../src/lib/data/db';
+import { DEFAULT_SETTINGS, type Measurement, type Settings } from '../src/lib/data/db';
+const S: Settings = { ...DEFAULT_SETTINGS, sex: 'male', age: 18, heightCm: 180, goalWeightKg: 70, healthFlags: { hyperlordosis: true } };
 import { addDays } from '../src/lib/calc/trend';
 import { targetsFromValues } from '../src/lib/model/targets';
 
@@ -35,7 +36,7 @@ describe('Open Food Facts', () => {
 });
 
 describe('Производные показатели', () => {
-  const d = deriveAll(ms, [], [], DEFAULT_SETTINGS, [], '2026-10-28');
+  const d = deriveAll(ms, [], [], S, [], '2026-10-28');
   it('последние значения переносятся вперёд', () => {
     expect(d.values.neck).toBe(39);
     expect(d.values.weight).toBeCloseTo(80.11, 2);
@@ -58,7 +59,7 @@ describe('Производные показатели', () => {
     expect(streak(new Set(['2026-11-01']), '2026-11-09')).toBe(0);
   });
   it('цели для режима «Цель» и калибровки', () => {
-    const g = goalMeasurements(d, DEFAULT_SETTINGS);
+    const g = goalMeasurements(d, S);
     expect(g.weight).toBe(70);
     expect(g.bicepsFlexed).toBeCloseTo(17.5 * 2.52, 6);
     const t = targetsFromValues({ bicepsFlexed: 40 }, 180);
@@ -66,9 +67,9 @@ describe('Производные показатели', () => {
     expect(t.height).toBe(180);
   });
   it('контекст для ИИ: инструкция, данные и русские подписи', () => {
-    const txt = buildAiContext({ days: 30, ms, sets: [], foods: [], settings: DEFAULT_SETTINGS, d });
+    const txt = buildAiContext({ days: 30, ms, sets: [], foods: [], settings: S, d });
     expect(txt).toContain('PMID или DOI');
-    expect(txt).toContain('гиперлордоз');
+    expect(txt).toContain('Гиперлордоз');
     expect(txt).toContain('Вес, кг 82');
     expect(txt).toContain('ВОПРОС:');
   });

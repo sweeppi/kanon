@@ -10,6 +10,8 @@ import { Strength } from './pages/Strength';
 import { Nutrition } from './pages/Nutrition';
 import { AdvicePage } from './pages/Advice';
 import { SettingsPage } from './pages/Settings';
+import { Onboarding } from './pages/Onboarding';
+import { Logo } from './components/Logo';
 
 export type Route = 'home' | 'measure' | 'strength' | 'food' | 'advice' | 'settings';
 const ROUTES: Route[] = ['home', 'measure', 'strength', 'food', 'advice', 'settings'];
@@ -38,17 +40,6 @@ function Icon({ name }: { name: Route }) {
 
 const LABELS: Record<Route, string> = { home: 'Главная', measure: 'Замеры', strength: 'Силовые', food: 'Питание', advice: 'Советы', settings: 'Настройки' };
 
-export function Logo() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="5" y="4" width="22" height="3" rx="1" fill="currentColor" />
-      <rect x="7" y="25" width="18" height="3" rx="1" fill="currentColor" />
-      <rect x="9" y="8" width="3" height="16" fill="currentColor" />
-      <rect x="14.5" y="8" width="3" height="16" fill="currentColor" />
-      <rect x="20" y="8" width="3" height="16" fill="currentColor" />
-    </svg>
-  );
-}
 
 function Shell() {
   const [route, setRoute] = useState<Route>(readRoute);
@@ -151,6 +142,8 @@ function Shell() {
       <main>
         {!ready ? (
           <div className="empty">Загрузка…</div>
+        ) : !settings.onboarded ? (
+          <Onboarding />
         ) : route === 'home' ? (
           <Home />
         ) : route === 'measure' ? (
@@ -166,6 +159,7 @@ function Shell() {
         )}
       </main>
 
+      {settings.onboarded && (
       <footer className="tabbar">
         <nav aria-label="Разделы">
           {ROUTES.map((r) => (
@@ -176,6 +170,7 @@ function Shell() {
           ))}
         </nav>
       </footer>
+      )}
     </>
   );
 }

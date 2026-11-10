@@ -208,10 +208,11 @@ export function calibrate(rig: Rig, targets: Targets, globals: Params = {}, opts
 }
 
 /** Глобальные морфы из состава тела (эвристика): мышечность из нормализованного FFMI, жир из %. */
-export function globalsFromComposition(normFfmi?: number | null, bodyFat?: number | null): Params {
+export function globalsFromComposition(normFfmi?: number | null, bodyFat?: number | null, sex: 'male' | 'female' = 'male'): Params {
   const clamp = (x: number) => Math.max(-1, Math.min(1, x));
-  const g: Params = {};
-  if (normFfmi != null) g.muscle = clamp((normFfmi - 20) / 4);
-  if (bodyFat != null) g.fat = clamp((bodyFat - 16) / 10);
+  const g: Params = { sex: sex === 'female' ? 1 : 0 };
+  const f = sex === 'female';
+  if (normFfmi != null) g.muscle = clamp((normFfmi - (f ? 16 : 20)) / (f ? 3 : 4));
+  if (bodyFat != null) g.fat = clamp((bodyFat - (f ? 26 : 16)) / 10);
   return g;
 }

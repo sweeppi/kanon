@@ -14,7 +14,7 @@ import os
 import sys
 import bpy
 
-EXPECTED = 30
+EXPECTED = 32
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SRC = os.path.join(ROOT, "model-src", "body-uncompressed.glb")
 OUT = os.path.join(ROOT, "model-src", "body.blend")
