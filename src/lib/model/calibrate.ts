@@ -22,7 +22,7 @@ export interface Rig {
 export type Params = Partial<Record<MorphParam, number>>;
 
 /** Пределы параметров: ±1 — родной диапазон MakeHuman; дальше — экстраполяция (помечаем). */
-export const PARAM_LIMIT = 1.6;
+export const PARAM_LIMIT = 1.3; // дальше морфы MakeHuman ломают форму (вздутия) — лучше честно показать «вне допуска»
 export const NATIVE_LIMIT = 1;
 
 export function buildRig(base: Float32Array, deltas: Float32Array[], index: ArrayLike<number>, segId: ArrayLike<number>, lm: Landmarks): Rig {
@@ -212,7 +212,13 @@ export function globalsFromComposition(normFfmi?: number | null, bodyFat?: numbe
   const clamp = (x: number) => Math.max(-1, Math.min(1, x));
   const g: Params = { sex: sex === 'female' ? 1 : 0 };
   const f = sex === 'female';
-  if (normFfmi != null) g.muscle = clamp((normFfmi - (f ? 16 : 20)) / (f ? 3 : 4));
+  // Мышечность (общий морф MakeHuman) и рельеф (мышечные формы частей тела) растут с FFMI;
+  // рельеф лучше виден при низком жире. Эвристика: FFMI 20 → обычный тренированный, 24–25 → потолок натурала.
+  if (normFfmi != null) {
+    g.muscle = clamp((normFfmi - (f ? 15.5 : 19)) / (f ? 4 : 4.5));
+    const lean = bodyFat == null ? 0.8 : Math.max(0.4, Math.min(1.1, ((f ? 32 : 24) - bodyFat) / 12));
+    g.definition = Math.max(0, Math.min(1.0, ((normFfmi - (f ? 16 : 19.5)) / (f ? 4.5 : 4.5)) * lean * (f ? 0.6 : 1)));
+  }
   if (bodyFat != null) g.fat = clamp((bodyFat - (f ? 26 : 16)) / 10);
   return g;
 }

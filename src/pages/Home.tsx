@@ -6,6 +6,7 @@ import { Body3DSlot } from '../components/Body3DSlot';
 import { targetsFromValues } from '../lib/model/targets';
 import { globalsFromComposition, type Calibration } from '../lib/model/calibrate';
 import { latestValues, composition, goalMeasurements } from '../lib/derive';
+import { forecastAt, type ForecastBase } from '../lib/calc/forecast';
 import { LEVELS_BY_SEX, COMPONENT_WEIGHTS, type Component } from '../lib/calc/levels.config';
 import { applicableComponents } from '../lib/calc/levels';
 import { GOLDEN } from '../lib/calc/body';
@@ -24,7 +25,7 @@ const SLICE_RU: Record<string, string> = {
   wrist: 'запястье', thigh: 'бедро', knee: 'колено', calf: 'голень', ankle: 'лодыжка',
 };
 
-type Mode = 'now' | 'goal' | 'reeves' | 'ab';
+type Mode = 'now' | 'forecast' | 'goal' | 'reeves' | 'ab';
 
 export function Home() {
   const { d, settings, ms } = useStore();
@@ -33,6 +34,23 @@ export function Home() {
   const dates = useMemo(() => [...new Set(ms.map((m) => m.date))].sort(), [ms]);
   const [dateA, setDateA] = useState<string>('');
   const [dateB, setDateB] = useState<string>('');
+  const [months, setMonths] = useState<number>(12);
+  const [ceiling, setCeiling] = useState(false);
+  const fcBase: ForecastBase | null =
+    d.values.weight && d.comp.bodyFat != null
+      ? {
+          sex: settings.sex,
+          heightCm: d.comp.heightCm,
+          weight: d.values.weight,
+          bodyFat: d.comp.bodyFat,
+          values: d.values,
+          trainingYears: settings.trainingYears,
+          goalBodyFat: settings.goalBodyFat,
+          cutRatePct: settings.cutRatePct,
+          butt: d.comp.butt,
+        }
+      : null;
+  const fc = useMemo(() => (fcBase ? forecastAt(fcBase, ceiling ? 'ceiling' : months) : null), [fcBase && JSON.stringify(fcBase), months, ceiling]); // eslint-disable-line react-hooks/exhaustive-deps
   const [cal, setCal] = useState<{ main: Calibration; ghost: Calibration | null } | null>(null);
   const lvl = d.level;
   const LEVELS = LEVELS_BY_SEX[settings.sex];
@@ -57,6 +75,11 @@ export function Home() {
       const ideal = { ...v, ...(r.bicepsFlexed ? { bicepsFlexed: r.bicepsFlexed, bicepsRelaxed: r.bicepsFlexed * 0.92 } : {}), calf: r.calf ?? v.calf, neck: r.neck ?? v.neck, chest: r.chest ?? v.chest, waist: r.waist ?? v.waist, thigh: r.thigh ?? v.thigh };
       return { primary: now, ghost: specFor(ideal) };
     }
+    if (mode === 'forecast' && fc) {
+      const spec = specFor(fc.values);
+      spec.globals = { ...spec.globals, ...globalsFromComposition(fc.normFfmi, fc.bodyFat, settings.sex) };
+      return { primary: spec, ghost: now };
+    }
     if (mode === 'ab') {
       const a = dateA || dates[0];
       const b = dateB || dates[dates.length - 1];
@@ -64,7 +87,7 @@ export function Home() {
     }
     return { primary: now, ghost: null };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, v, d, settings, dateA, dateB, ms, dates]);
+  }, [mode, v, d, settings, dateA, dateB, ms, dates, fc]);
 
   const nextMin = LEVELS[lvl.levelIndex + 1]?.minScore ?? 100;
   const curMin = LEVELS[lvl.levelIndex].minScore;
@@ -86,11 +109,10 @@ export function Home() {
           <>
             <div className="spread tiny" style={{ marginBottom: 4 }}>
               <span>до «{lvl.next}»</span>
-              <span>
-                {fmt(lvl.score, 0)} → {nextMin}
-              </span>
+              <span>{lvl.score >= nextMin ? `балл ${fmt(lvl.score, 0)} уже ≥ ${nextMin}` : `${fmt(lvl.score, 0)} → ${nextMin}`}</span>
             </div>
             <Progress value={progress} />
+            {lvl.score >= nextMin && <p className="tiny" style={{ color: 'var(--warn)', marginTop: 4 }}>Балла хватает, но не выполнены обязательные условия уровня — они ниже.</p>}
             <h3 style={{ marginTop: 12 }}>Что нужно для «{lvl.next}»</h3>
             <ul className="list">
               {lvl.requirements.map((r, i) => (
@@ -144,11 +166,67 @@ export function Home() {
               label="Режим модели"
               options={[
                 ['now', 'Сейчас'],
+                ['forecast', 'Прогноз'],
                 ['goal', 'Цель'],
                 ...(male ? ([['reeves', 'Ривз']] as Array<[Mode, string]>) : []),
                 ['ab', 'A / B'],
               ]}
             />
+            {mode === 'forecast' && (
+              <div style={{ marginTop: 8 }}>
+                {!fc ? (
+                  <p className="tiny muted">Для прогноза нужны вес и % жира (шея + талия или весы).</p>
+                ) : (
+                  <>
+                    <div className="spread tiny">
+                      <span>{ceiling ? 'Натуральный потолок' : `Через ${months} мес.`}</span>
+                      <button className={`btn btn-small ${ceiling ? 'btn-primary' : ''}`} onClick={() => setCeiling(!ceiling)}>
+                        Потолок
+                      </button>
+                    </div>
+                    <input type="range" min={0} max={60} step={3} value={months} disabled={ceiling} onChange={(e) => setMonths(+e.target.value)} aria-label="Месяцев вперёд" style={{ width: '100%' }} />
+                    <table className="tbl">
+                      <thead>
+                        <tr>
+                          <th></th>
+                          <th>Сейчас</th>
+                          <th>{ceiling ? 'Потолок' : `+${months} мес.`}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>Вес, кг</td>
+                          <td>{fmt(d.values.weight, 1)}</td>
+                          <td>{fmt(fc.weight, 1)}</td>
+                        </tr>
+                        <tr>
+                          <td>Жир, %</td>
+                          <td>{fmt(d.comp.bodyFat, 1)}</td>
+                          <td>{fmt(fc.bodyFat, 1)}</td>
+                        </tr>
+                        <tr>
+                          <td>FFMI</td>
+                          <td>{fmt(d.comp.normFfmi, 1)}</td>
+                          <td>{fmt(fc.normFfmi, 1)}</td>
+                        </tr>
+                        {(['shoulders', 'chest', 'bicepsFlexed', 'waist', 'thigh'] as const).map((k) =>
+                          d.values[k] ? (
+                            <tr key={k}>
+                              <td>{{ shoulders: 'Плечи', chest: 'Грудь', bicepsFlexed: 'Бицепс напр.', waist: 'Талия', thigh: 'Бедро' }[k]}</td>
+                              <td>{fmt(d.values[k], 1)}</td>
+                              <td>{fmt(fc.values[k], 1)}</td>
+                            </tr>
+                          ) : null,
+                        )}
+                      </tbody>
+                    </table>
+                    <p className="tiny muted">
+                      Модель: сухая масса растёт ≈ {fmt(fcBase!.trainingYears >= 4 ? 1.75 : fcBase!.trainingYears >= 1.5 ? 3.75 : 7, 1)} кг/год{settings.sex === 'female' ? ' ÷ 2' : ''} с замедлением у потолка ({d.comp.butt ? 'Casey Butt' : `FFMI ${settings.sex === 'male' ? 25 : 21}`}), жир — к цели {settings.goalBodyFat} % темпом сушки. Пройдено {fmt(fc.toCeiling * 100, 0)} % пути к потолку. Эвристика, а не обещание.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
             {mode === 'ab' && (
               <div className="grid2" style={{ marginTop: 8 }}>
                 <label className="field">
@@ -181,7 +259,7 @@ export function Home() {
                 <input type="checkbox" checked={heat} onChange={(e) => setHeat(e.target.checked)} /> Тепловая карта зон
               </label>
               <span className="tiny muted">
-                {mode === 'goal' && 'бронза — сейчас'}
+                {(mode === 'goal' || mode === 'forecast') && 'бронза — сейчас'}
                 {mode === 'reeves' && 'бронза — идеал Ривза'}
                 {mode === 'ab' && 'бронза — дата A'}
               </span>

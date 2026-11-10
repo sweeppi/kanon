@@ -25,6 +25,7 @@ export const MORPH_PARAMS = [
   'height',
   'muscle',
   'fat',
+  'definition', // мышечный рельеф: грудные, широчайшие, дельты, руки, ноги (сумма мышечных таргетов MakeHuman)
   'neck',
   'shoulders',
   'chest',

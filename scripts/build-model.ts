@@ -106,6 +106,22 @@ const measureMap: Record<string, string> = {
   morphSources.sex_incr = diffTargets(fem, mal);
   morphSources.sex_decr = new Map(); // «обратный пол» не нужен — пустой морф, почти ничего не весит
 }
+// Мышечный рельеф: сумма «muscle»-таргетов частей тела MakeHuman (CC0). Обхваты потом подгоняются
+// своими морфами, поэтому рельеф меняет форму (V-силуэт, дельты, грудные), а не «раздувает» замеры.
+{
+  const parts = [
+    'torso-muscle-pectoral-incr', 'torso-muscle-dorsi-incr', 'torso-vshape-incr',
+    'l-upperarm-shoulder-muscle-incr', 'r-upperarm-shoulder-muscle-incr',
+    'l-upperarm-muscle-incr', 'r-upperarm-muscle-incr',
+    'l-upperleg-muscle-incr', 'r-upperleg-muscle-incr',
+    'l-lowerleg-muscle-incr', 'r-lowerleg-muscle-incr',
+  ];
+  // V-силуэт очень сильный — 40 %; руки и ноги — 50 % (их объём задают замеры), грудные, широчайшие, дельты — 100 %
+  const scaleT = (t: Target, k: number): Target => new Map([...t].map(([i, d]) => [i, [d[0] * k, d[1] * k, d[2] * k] as [number, number, number]]));
+  const weight = (n: string) => (n === 'torso-vshape-incr' ? 0.3 : /shoulder-muscle/.test(n) ? 0.7 : /upperarm-muscle/.test(n) ? 0.5 : 1);
+  morphSources.definition_incr = sumTargets(...parts.map((n) => scaleT(T(n), weight(n))));
+  morphSources.definition_decr = new Map();
+}
 for (const [k, file] of Object.entries(measureMap))
   for (const d of ['incr', 'decr']) morphSources[`${k}_${d}`] = T(`measure-${file}-${d}`);
 for (const d of ['incr', 'decr'])

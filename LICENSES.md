@@ -10,7 +10,7 @@
 | `public/models/body.glb`, `model-src/body-uncompressed.glb`, `src/lib/model/landmarks.json` | Производные, созданы `scripts/build-model.ts` из ассетов выше | CC0 (производная CC0-ассетов; дополнительно MIT для скрипта) |
 | `model-src/body.blend` | Создан в Blender 5.2.3 скриптом `scripts/blender/make_blend.py` из `body-uncompressed.glb` | CC0. Blender (GPL-3.0) — только инструмент, в проект не входит; файлы, созданные в Blender, лицензией GPL не связаны |
 
-Использованные морфы MakeHuman: `macrodetails/{caucasian,african,asian}-{male,female}-young` (женские — для морфа пола), `universal-male-young-{average,max,min}muscle-*`, `macrodetails/height/male-young-averagemuscle-averageweight-{max,min}height`, `measure/measure-{neck,bust,waist,hips,upperarm,thigh,calf,wrist,ankle,knee}-circ-{incr,decr}`, `measure/measure-shoulder-dist-{incr,decr}`, `armslegs/{l,r}-lowerarm-muscle-{incr,decr}`.
+Использованные морфы MakeHuman: `macrodetails/{caucasian,african,asian}-{male,female}-young` (женские — для морфа пола), `universal-male-young-{average,max,min}muscle-*`, `macrodetails/height/male-young-averagemuscle-averageweight-{max,min}height`, `measure/measure-{neck,bust,waist,hips,upperarm,thigh,calf,wrist,ankle,knee}-circ-{incr,decr}`, `measure/measure-shoulder-dist-{incr,decr}`, `armslegs/{l,r}-lowerarm-muscle-{incr,decr}`; для морфа «рельеф» — `torso/torso-muscle-{pectoral,dorsi}-incr`, `torso/torso-vshape-incr`, `armslegs/{l,r}-{upperarm,upperarm-shoulder,upperleg,lowerleg}-muscle-incr`.
 
 Программа MakeHuman (AGPL) **не используется и не распространяется** — только CC0-ассеты.
 

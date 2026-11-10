@@ -3,6 +3,7 @@ import { useStore } from '../lib/store';
 import { evaluateAdvice, EVIDENCE_RU, pubmedUrl, doiUrl, knowledge } from '../lib/advice/engine';
 import { Card, Seg, Empty, useToast } from '../components/ui';
 import { buildAiContext } from '../lib/aiContext';
+import { ReportCard } from '../components/ReportCard';
 
 export function AdvicePage() {
   const store = useStore();
@@ -31,6 +32,8 @@ export function AdvicePage() {
       <p className="tiny muted">
         Советы срабатывают по вашим данным. У каждого — источник с PMID/DOI, проверенный через PubMed и Crossref {knowledge.verifiedAt.split('-').reverse().join('.')}. Это не медицинская консультация.
       </p>
+
+      <ReportCard />
 
       {research.length === 0 && heur.length === 0 && (
         <Card>

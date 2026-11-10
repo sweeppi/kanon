@@ -12,6 +12,9 @@ import { rigFromMesh } from '../lib/model/browserRig';
 
 const lm = landmarksJson as unknown as Landmarks;
 const MODEL_URL = `${import.meta.env.BASE_URL}models/body.glb`;
+// Начальный ракурс: камера чуть выше пояса, центр вращения на уровне ~0,95 м (середина фигуры)
+const CAM_POS: [number, number, number] = [0, 1.05, 3.4];
+const CAM_TARGET: [number, number, number] = [0, 0.95, 0];
 
 export interface BodySpec {
   targets: Targets;
@@ -74,7 +77,7 @@ function BodyModel({ primary, ghost, heat, zoneStatus, onCalibrated }: Body3DPro
   }, [gltf]);
   const rig = useMemo(() => rigFromMesh(src, lm), [src]);
 
-  const mainMat = useMemo(() => new MeshStandardMaterial({ color: '#cfc6b8', roughness: 0.62, metalness: 0.05 }), []);
+  const mainMat = useMemo(() => new MeshStandardMaterial({ color: '#d8cfc2', roughness: 0.48, metalness: 0.02 }), []);
   const ghostMat = useMemo(
     () => new MeshStandardMaterial({ color: '#c9965b', transparent: true, opacity: 0.28, depthWrite: false, roughness: 0.4, side: DoubleSide }),
     [],
@@ -191,6 +194,19 @@ export default function Body3D(props: Body3DProps) {
   const [attempt, setAttempt] = useState(0);
   const controls = useRef<OrbitControlsImpl>(null);
   const [gl] = useState(webglAvailable);
+  // R3F рисует сцену только после того, как измерит контейнер. Если первое измерение потерялось
+  // (страница открылась в фоне, после перезагрузки сразу на этой вкладке), холст остаётся 300×150 и пустым.
+  // Подталкиваем измерение: событие resize окна сразу после монтирования и при возврате на вкладку.
+  useEffect(() => {
+    const kick = () => window.dispatchEvent(new Event('resize'));
+    const timers = [50, 300, 1000].map((ms) => setTimeout(kick, ms));
+    const onVis = () => document.visibilityState === 'visible' && kick();
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      timers.forEach(clearTimeout);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [attempt]);
   const rm = reducedMotion();
   if (!gl) return <BodyPoster message="WebGL недоступен в этом браузере — 3D-модель не показывается. Остальное приложение работает." />;
   if (err)
@@ -209,7 +225,7 @@ export default function Body3D(props: Body3DProps) {
         key={attempt}
         frameloop="demand"
         dpr={[1, Math.min(2, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)]}
-        camera={{ position: [0, 1.05, 3.4], fov: 32, near: 0.1, far: 30 }}
+        camera={{ position: CAM_POS, fov: 32, near: 0.1, far: 30 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
         onCreated={({ gl: r }) => {
           r.domElement.addEventListener('webglcontextlost', (e) => {
@@ -218,9 +234,11 @@ export default function Body3D(props: Body3DProps) {
           });
         }}
       >
-        <ambientLight intensity={0.55} />
-        <directionalLight position={[2, 3, 3]} intensity={1.6} />
-        <directionalLight position={[-3, 2, -2]} intensity={0.7} color="#c9965b" />
+        {/* Свет «как в зале»: ключевой сверху-сбоку рисует тени рельефа, контровой обрисовывает силуэт */}
+        <hemisphereLight args={['#f4efe6', '#2a2620', 0.35]} />
+        <directionalLight position={[1.6, 3.2, 2.2]} intensity={2.4} />
+        <directionalLight position={[-2.5, 1.2, 1.5]} intensity={0.45} color="#b8c4d6" />
+        <directionalLight position={[0, 2.5, -3]} intensity={1.3} color="#c9965b" />
         <GLBoundary onError={setErr}>
           <Suspense fallback={null}>
             <BodyModel {...props} />
@@ -229,7 +247,7 @@ export default function Body3D(props: Body3DProps) {
         <OrbitControls
           ref={controls}
           makeDefault
-          target={[0, 0.95, 0]}
+          target={CAM_TARGET}
           enablePan={false}
           minDistance={1.3}
           maxDistance={5}
@@ -238,7 +256,17 @@ export default function Body3D(props: Body3DProps) {
           enableDamping={!rm}
         />
       </Canvas>
-      <button className="btn btn-small body3d-reset" onClick={() => controls.current?.reset()} aria-label="Сбросить ракурс">
+      <button className="btn btn-small body3d-reset" onClick={() => {
+          // reset() вернул бы состояние на момент создания контролов — тогда центр ещё (0,0,0), и камера смотрит в пол.
+          // Поэтому задаём начальный ракурс явно.
+          const c = controls.current;
+          if (!c) return;
+          c.target.set(...CAM_TARGET);
+          c.object.position.set(...CAM_POS);
+          c.object.zoom = 1;
+          c.object.updateProjectionMatrix();
+          c.update(); // шлёт событие change → R3F перерисовывает кадр (frameloop="demand")
+        }} aria-label="Сбросить ракурс">
         ⟲ Ракурс
       </button>
     </div>

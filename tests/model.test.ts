@@ -126,6 +126,14 @@ describe.skipIf(!existsSync(GLB))('Калибровка реальной мод�
     expect(cal.params.sex).toBe(1);
   });
 
+  it('рельеф на максимуме (натуральный потолок) не мешает подгонке обхватов', () => {
+    const targets = { height: 180, neck: 42, shoulders: 132, chest: 112, waist: 78, hips: 97, biceps: 39, forearm: 32, wrist: 17.5, thigh: 62, knee: 39, calf: 41, ankle: 23 };
+    const cal = calibrate(rig, targets, { muscle: 1, definition: 1.0, fat: -0.7 });
+    // морф предплечья MakeHuman слабый: при пределе растяжения 1,3 большое предплечье честно помечается «вне допуска»
+    for (const [k, v] of Object.entries(cal.residuals)) if (k !== 'forearm') expect(Math.abs(v!), `${k}: ${v}`).toBeLessThanOrEqual(2);
+    expect(Math.abs(cal.residuals.forearm!) <= 2 || cal.outOfTolerance.includes('forearm')).toBe(true);
+  });
+
   it('нереалистичный замер честно помечается как вне допуска', () => {
     const cal = calibrate(rig, { height: 180, biceps: 70 });
     expect(cal.outOfTolerance).toContain('biceps');
