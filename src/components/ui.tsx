@@ -1,5 +1,41 @@
 // Мелкие UI-компоненты без зависимостей.
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { Icon, type IconName } from './icons';
+
+/** Заголовок экрана: название шрифтом Forum, под ним — необязательная строка, справа — действие. */
+export function ScreenHead({ title, sub, action }: { title: string; sub?: ReactNode; action?: ReactNode }) {
+  return (
+    <header className="screen-head">
+      <div>
+        <h1 className="display">{title}</h1>
+        {sub && <p>{sub}</p>}
+      </div>
+      {action}
+    </header>
+  );
+}
+
+/** Сворачиваемая карточка: справочные таблицы, методики и редкие настройки не занимают первый экран. */
+export function Fold({ title, children, open }: { title: ReactNode; children: ReactNode; open?: boolean }) {
+  return (
+    <details className="card" open={open}>
+      <summary>
+        <span>{title}</span>
+        <Icon name="chevron" size={20} />
+      </summary>
+      <div className="fold-body">{children}</div>
+    </details>
+  );
+}
+
+/** Кнопка-иконка 44 × 44: подпись для экранного диктора обязательна. */
+export function IconButton({ icon, label, tone, ...rest }: { icon: IconName; label: string; tone?: 'danger' | 'primary' } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button type="button" className={`iconbtn${tone ? ` iconbtn-${tone}` : ''}`} aria-label={label} title={label} {...rest}>
+      <Icon name={icon} size={20} />
+    </button>
+  );
+}
 
 export const fmt = (x: number | null | undefined, d = 1) =>
   x == null || !Number.isFinite(x) ? '—' : x.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -123,9 +159,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
       <div className="sheet" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} onClick={(e) => e.stopPropagation()}>
         <div className="spread" style={{ marginBottom: 10 }}>
           <h2 style={{ margin: 0 }}>{title}</h2>
-          <button className="btn btn-small" onClick={onClose} aria-label="Закрыть">
-            ✕
-          </button>
+          <IconButton icon="close" label="Закрыть" onClick={onClose} />
         </div>
         {children}
       </div>

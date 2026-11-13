@@ -9,11 +9,12 @@ import type { Landmarks, ZoneName } from '../lib/model/schema';
 import { ZONES } from '../lib/model/schema';
 import { calibrate, vertexGetter, type Calibration, type Params, type Targets, type Rig } from '../lib/model/calibrate';
 import { rigFromMesh } from '../lib/model/browserRig';
+import { Icon } from './icons';
 
 const lm = landmarksJson as unknown as Landmarks;
 const MODEL_URL = `${import.meta.env.BASE_URL}models/body.glb`;
 // Начальный ракурс: камера чуть выше пояса, центр вращения на уровне ~0,95 м (середина фигуры)
-const CAM_POS: [number, number, number] = [0, 1.05, 3.4];
+const CAM_POS: [number, number, number] = [0, 1.05, 3.7]; // 3,7 м: фигура 1,9 м помещается целиком со ступнями
 const CAM_TARGET: [number, number, number] = [0, 0.95, 0];
 
 export interface BodySpec {
@@ -267,7 +268,7 @@ export default function Body3D(props: Body3DProps) {
           c.object.updateProjectionMatrix();
           c.update(); // шлёт событие change → R3F перерисовывает кадр (frameloop="demand")
         }} aria-label="Сбросить ракурс">
-        ⟲ Ракурс
+        <Icon name="reset" size={20} />
       </button>
     </div>
   );

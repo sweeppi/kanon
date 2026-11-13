@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
 import { getDb, type FoodEntry, type FoodTemplate } from '../lib/data/db';
-import { Card, Stat, NumField, fmt, fmtDate, useToast, Empty, Sheet, Progress } from '../components/ui';
+import { Card, Stat, NumField, Fold, ScreenHead, IconButton, fmt, fmtDate, useToast, Sheet } from '../components/ui';
+import { Icon } from '../components/icons';
+import { Tape } from '../components/Tape';
 import { LineChart } from '../components/Chart';
 import { today } from '../lib/derive';
 import { proteinPer100Rub } from '../lib/calc/nutrition';
@@ -12,17 +14,30 @@ import { readTable, type Table, type Mapping } from '../lib/import/table';
 import { detectFoods, parseFoodTable, foodKey, FOOD_IMPORT_FIELDS } from '../lib/import/foods';
 import { MappingEditor } from '../components/ImportMapping';
 import { pickFile } from '../components/ui';
+import { BarcodeScanner } from '../components/BarcodeScanner';
+import { AskAiFood } from '../components/AskAiFood';
+import { addWater } from '../lib/water';
+import { useHashAction } from '../lib/useHashAction';
 
 type Draft = Omit<FoodEntry, 'id' | 'date'>;
 const EMPTY: Draft = { name: '', kcal: 0, protein: 0, fat: 0, carbs: 0 };
 
 export function Nutrition() {
-  const { d, foods, templates, settings } = useStore();
+  const { d, foods, templates, settings, water } = useStore();
   const toast = useToast();
   const [date, setDate] = useState(today());
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [asTemplate, setAsTemplate] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  // ссылка-действие «#food?add=1» (Быстрая команда) сразу открывает добавление
+  useHashAction('food', (p) => p.get('add') === '1' && setAddOpen(true));
+  const [scanOpen, setScanOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  /** штрихкод со сканера: поиск откроется сразу с ним */
+  const [scanned, setScanned] = useState('');
+  const waterMl = water.get(date) ?? 0;
+  const drink = (delta: number) => void getDb().water.put({ date, ml: addWater(waterMl, delta) });
   const t = d.targets;
   const day = d.totals.get(date);
   const entries = useMemo(() => foods.filter((f) => f.date === date), [foods, date]);
@@ -42,12 +57,19 @@ export function Nutrition() {
   };
 
   const add = async (e: Draft, source: FoodEntry['source'] = 'manual') => {
-    if (!e.name.trim()) return toast('Назовите блюдо');
-    if (!(e.kcal >= 0)) return toast('Проверьте калории');
+    if (!e.name.trim()) {
+      toast('Назовите блюдо');
+      return false;
+    }
+    if (!(e.kcal >= 0)) {
+      toast('Проверьте калории');
+      return false;
+    }
     const full = withEstimates({ ...e, name: e.name.trim() });
     await getDb().foods.add({ ...full, date, source });
     if (asTemplate && source === 'manual') await getDb().templates.add({ ...full });
     toast(`Добавлено: ${e.name}`);
+    return true;
   };
 
   const copyDay = async () => {
@@ -85,22 +107,168 @@ export function Nutrition() {
     setImp(null);
   };
 
+  const remaining = t ? Math.round(t.kcal - (day?.kcal ?? 0)) : null;
+  const isToday = date === today();
+
   return (
     <div>
-      <h1>Питание</h1>
-      <Card title="Цели на день" extra={t?.cutting ? <span className="badge badge-accent">сушка</span> : null}>
-        {!t ? (
-          <Empty>
-            Нужен вес. <a href="#measure">Внесите замер →</a>
-          </Empty>
+      <ScreenHead
+        title="Питание"
+        action={
+          <button className="btn btn-small btn-primary" onClick={() => setAddOpen(true)}>
+            <Icon name="plus" size={18} />
+            Добавить
+          </button>
+        }
+      />
+      <div className="daynav">
+        <IconButton icon="back" label="Предыдущий день" onClick={() => setDate(addDays(date, -1))} />
+        <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value || today())} aria-label="Дата дневника" />
+        <IconButton icon="chevron" label="Следующий день" disabled={date >= today()} onClick={() => setDate(addDays(date, 1))} />
+      </div>
+
+      <Card>
+        {!t || remaining === null ? (
+          <div className="empty">
+            <p>Чтобы посчитать цель по калориям и белку, нужен ваш вес.</p>
+            <a className="btn btn-primary" href="#measure">
+              Внести вес
+            </a>
+          </div>
         ) : (
           <>
-            <div className="grid3">
-              <Stat label="Ккал" value={fmt(t.kcal, 0)} sub={t.kcalOverridden ? 'вручную' : t.cutting ? `−${settings.cutRatePct} %/нед` : 'поддержание'} />
-              <Stat label="Белок" value={`${fmt(t.protein, 0)} г`} sub={t.proteinOverridden ? 'вручную' : `${fmt(t.proteinRange[0], 0)}–${fmt(t.proteinRange[1], 0)}`} />
-              <Stat label="Жиры / углев." value={`${t.fat} / ${t.carbs}`} sub="г" />
+            <div className="figure" style={{ marginTop: 0 }}>
+              <b>{fmt(Math.abs(remaining), 0)}</b>
+              <span>{remaining >= 0 ? (isToday ? 'ккал осталось на сегодня' : 'ккал оставалось') : 'ккал сверх цели'}</span>
             </div>
-            <p className="tiny muted" style={{ marginTop: 8 }}>
+            {(
+              [
+                ['Калории', day?.kcal ?? 0, t.kcal, ''],
+                ['Белок', day?.protein ?? 0, t.protein, ' г'],
+                ['Жиры', day?.fat ?? 0, t.fat, ' г'],
+                ['Углеводы', day?.carbs ?? 0, t.carbs, ' г'],
+              ] as const
+            ).map(([l, v, g, u]) => (
+              <Tape key={l} label={l} value={v} max={g} caption={`${fmt(v, 0)} из ${fmt(g, 0)}${u}`} ariaText={`${l}: ${fmt(v, 0)} из ${fmt(g, 0)}${u}`} />
+            ))}
+            <p className="caption" style={{ margin: '16px 0 0' }}>
+              Клетчатка {entries.some((e) => e.fiberEstimated) ? '≈ ' : ''}
+              {fmt(day?.fiber ?? 0, 0)} г (ориентир 25–29), сахар {entries.some((e) => e.sugarEstimated) ? '≈ ' : ''}
+              {fmt(day?.sugar ?? 0, 0)} г, стоимость {fmt(day?.priceRub ?? 0, 0)} ₽
+              {day && day.priceRub > 0 && `, белок на 100 ₽: ${fmt(proteinPer100Rub(day.protein, day.priceRub), 1)} г`}
+            </p>
+          </>
+        )}
+      </Card>
+
+      <Card title="Вода">
+        <div style={{ marginTop: 12 }}>
+          <Tape label={isToday ? 'Сегодня' : fmtDate(date)} value={waterMl} max={settings.waterGoalMl} caption={`${fmt(waterMl, 0)} из ${fmt(settings.waterGoalMl, 0)} мл`} ariaText={`Вода: ${fmt(waterMl, 0)} из ${fmt(settings.waterGoalMl, 0)} миллилитров`} />
+        </div>
+        <div className="actions" style={{ marginTop: 12 }}>
+          <button className="btn" onClick={() => drink(250)}>
+            + 250 мл
+          </button>
+          <button className="btn" onClick={() => drink(500)}>
+            + 500 мл
+          </button>
+          <button className="btn" disabled={waterMl === 0} onClick={() => drink(-250)} aria-label="Убрать 250 миллилитров">
+            − 250
+          </button>
+        </div>
+        <p className="caption" style={{ margin: '12px 0 0' }}>
+          Цель задаёте вы в настройках. Единой нормы нет: потребность зависит от веса, жары и нагрузки.
+        </p>
+      </Card>
+
+      <Card title={isToday ? 'Съедено сегодня' : `Съедено ${fmtDate(date)}`}>
+        {entries.length === 0 ? (
+          <div className="empty">
+            <p>Записей за этот день нет.</p>
+            <button className="btn btn-primary" onClick={() => setAddOpen(true)}>
+              Добавить блюдо
+            </button>
+          </div>
+        ) : (
+          <ul className="entries" style={{ marginTop: 4 }}>
+            {entries.map((e) => (
+              <li key={e.id} className="entry">
+                <div className="entry-main">
+                  <b>
+                    {e.name}
+                    {e.grams ? <span className="muted" style={{ fontWeight: 400 }}>, {e.grams} г</span> : null}
+                  </b>
+                  <small className="muted">
+                    {e.kcal} ккал, Б {fmt(e.protein, 0)} Ж {fmt(e.fat, 0)} У {fmt(e.carbs, 0)}
+                    {e.source === 'ai' && <span style={{ color: 'var(--warn)' }}> (оценка ИИ)</span>}
+                    {e.fiber != null && `, клетчатка ${e.fiberEstimated ? '≈' : ''}${fmt(e.fiber, 0)}`}
+                    {e.sugar != null && `, сахар ${e.sugarEstimated ? '≈' : ''}${fmt(e.sugar, 0)}`}
+                    {e.priceRub ? `, ${e.priceRub} ₽ (${fmt(proteinPer100Rub(e.protein, e.priceRub), 1)} г белка на 100 ₽)` : ''}
+                  </small>
+                </div>
+                <IconButton
+                  icon="trash"
+                  tone="danger"
+                  label={`Удалить ${e.name}`}
+                  onClick={async () => {
+                    await getDb().foods.delete(e.id!);
+                    toast('Запись удалена');
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card title="Мои шаблоны">
+        {templates.length === 0 ? (
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            Отметьте «Сохранить как шаблон» при добавлении блюда — частые блюда будут добавляться в одно касание.
+          </p>
+        ) : (
+          <ul className="entries" style={{ marginTop: 4 }}>
+            {templates.map((tp: FoodTemplate) => (
+              <li key={tp.id} className="entry">
+                <div className="entry-main">
+                  <b>{tp.name}</b>
+                  <small className="muted">
+                    {tp.kcal} ккал, белок {fmt(tp.protein, 0)} г{tp.priceRub ? `, ${tp.priceRub} ₽` : ''}
+                  </small>
+                </div>
+                <IconButton icon="plus" tone="primary" label={`Добавить ${tp.name} в дневник`} onClick={() => void add({ ...tp }, 'template')} />
+                <IconButton
+                  icon="trash"
+                  tone="danger"
+                  label={`Удалить шаблон ${tp.name}`}
+                  onClick={async () => {
+                    if (confirm(`Удалить шаблон «${tp.name}»?`)) await getDb().templates.delete(tp.id!);
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {kcalSeries.length >= 2 && t && (
+        <Card title="Калории за 30 дней">
+          <div style={{ marginTop: 12 }}>
+            <LineChart unit="ккал" target={t.kcal} series={[{ label: 'Ккал за день', points: kcalSeries, color: 'var(--accent)', dots: true }]} />
+          </div>
+        </Card>
+      )}
+
+      <div className="section-gap">
+        {t && (
+          <Fold title="Цели и как они посчитаны">
+            <div className="grid2">
+              <Stat label="Калории" value={fmt(t.kcal, 0)} sub={t.kcalOverridden ? 'задано вручную' : t.cutting ? `сушка, −${settings.cutRatePct} % в неделю` : 'поддержание'} />
+              <Stat label="Белок, г" value={fmt(t.protein, 0)} sub={t.proteinOverridden ? 'задано вручную' : `диапазон ${fmt(t.proteinRange[0], 0)}–${fmt(t.proteinRange[1], 0)}`} />
+              <Stat label="Жиры, г" value={fmt(t.fat, 0)} />
+              <Stat label="Углеводы, г" value={fmt(t.carbs, 0)} />
+            </div>
+            <p className="tiny muted" style={{ marginTop: 12 }}>
               BMR {fmt(t.bmr, 0)} ккал ({t.bmrFormula}). TDEE {fmt(t.tdee, 0)} ккал —{' '}
               {t.tdeeSource === 'adaptive'
                 ? `адаптивный: ${t.adaptive!.loggedDays} дней записей за ${t.adaptive!.days} дн., тренд ${fmt(t.adaptive!.trendKgPerWeek, 2)} кг/нед (≈ 7700 ккал на кг — приближение)`
@@ -110,7 +278,7 @@ export function Nutrition() {
               . Белок: {t.proteinBasis} (Morton 2018; Helms 2014). Цели можно переопределить в настройках.
             </p>
             {d.forecast && (
-              <p className="tiny">
+              <p className="tiny" style={{ margin: 0 }}>
                 {d.forecast.date ? (
                   <>
                     Прогноз: <b>{settings.goalWeightKg} кг к {fmtDate(d.forecast.date)}</b> ({fmt(d.forecast.kgPerWeek, 2)} кг/нед по факту).
@@ -120,179 +288,109 @@ export function Nutrition() {
                 )}
               </p>
             )}
-          </>
+          </Fold>
         )}
-      </Card>
 
-      <Card title="Быстро заполнить">
-        <div className="row">
-          <button className="btn" onClick={startImport}>
-            Импорт CSV
-          </button>
-          <span className="tiny muted">MyFitnessPal, Cronometer, FatSecret или своя таблица</span>
-        </div>
-        <div className="row" style={{ marginTop: 8 }}>
-          <input type="date" value={copyFrom} max={today()} onChange={(e) => setCopyFrom(e.target.value)} aria-label="Из какого дня копировать" style={{ width: 160 }} />
-          <button className="btn" onClick={copyDay} disabled={copyFrom === date}>
-            Повторить день → {fmtDate(date)}
-          </button>
-        </div>
-      </Card>
-
-      <Card
-        title="Дневник"
-        extra={
-          <div className="row">
-            <button className="btn btn-small" onClick={() => setDate(addDays(date, -1))} aria-label="Предыдущий день">
-              ‹
+        <Fold title="Повторить день или импортировать">
+          <label className="field">
+            <span className="field-label">Скопировать записи из дня</span>
+            <input type="date" value={copyFrom} max={today()} onChange={(e) => setCopyFrom(e.target.value)} />
+          </label>
+          <div className="actions">
+            <button className="btn" onClick={copyDay} disabled={copyFrom === date}>
+              Повторить в {fmtDate(date)}
             </button>
-            <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value || today())} style={{ width: 150 }} aria-label="Дата дневника" />
-            <button className="btn btn-small" disabled={date >= today()} onClick={() => setDate(addDays(date, 1))} aria-label="Следующий день">
-              ›
+            <button className="btn" onClick={startImport}>
+              Импорт CSV
             </button>
           </div>
-        }
-      >
-        {t && (
-          <div className="stack" style={{ marginBottom: 10 }}>
-            {(
-              [
-                ['Ккал', day?.kcal ?? 0, t.kcal, ''],
-                ['Белок', day?.protein ?? 0, t.protein, 'г'],
-                ['Жиры', day?.fat ?? 0, t.fat, 'г'],
-                ['Углеводы', day?.carbs ?? 0, t.carbs, 'г'],
-              ] as const
-            ).map(([l, v, g, u]) => (
-              <div key={l}>
-                <div className="spread tiny">
-                  <span>{l}</span>
-                  <span>
-                    {fmt(v, 0)} / {fmt(g, 0)} {u}
-                  </span>
-                </div>
-                <Progress value={(v / (g || 1)) * 100} />
-              </div>
-            ))}
-            <div className="tiny muted">
-              Клетчатка {entries.some((e) => e.fiberEstimated) ? '≈ ' : ''}{fmt(day?.fiber ?? 0, 0)} г (ориентир 25–29) · сахар {entries.some((e) => e.sugarEstimated) ? '≈ ' : ''}{fmt(day?.sugar ?? 0, 0)} г · стоимость {fmt(day?.priceRub ?? 0, 0)} ₽
-              {day && day.priceRub > 0 && ` · белок на 100 ₽: ${fmt(proteinPer100Rub(day.protein, day.priceRub), 1)} г`}
+          <p className="caption" style={{ margin: '12px 0 0' }}>
+            Импорт понимает MyFitnessPal, Cronometer, FatSecret или свою таблицу.
+          </p>
+        </Fold>
+      </div>
+
+      <Sheet open={addOpen} onClose={() => setAddOpen(false)} title={`Добавить в ${fmtDate(date)}`}>
+        <div className="stack">
+          <div className="actions" style={{ marginTop: 0 }}>
+            <button
+              className="btn"
+              onClick={() => {
+                setAddOpen(false);
+                setScanOpen(true);
+              }}
+            >
+              Штрихкод
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                setAddOpen(false);
+                setScanned('');
+                setSearchOpen(true);
+              }}
+            >
+              Поиск
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                setAddOpen(false);
+                setAiOpen(true);
+              }}
+            >
+              Спросить ИИ
+            </button>
+          </div>
+          <label className="field">
+            <span className="field-label">Блюдо</span>
+            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Курица с рисом" />
+          </label>
+          <div className="grid2">
+            <NumField label="Калории" unit="ккал" min={0} max={5000} value={draft.kcal || undefined} onChange={(v) => setDraft({ ...draft, kcal: v ?? 0 })} />
+            <NumField label="Белок" unit="г" min={0} max={500} value={draft.protein || undefined} onChange={(v) => setDraft({ ...draft, protein: v ?? 0 })} />
+            <NumField label="Жиры" unit="г" min={0} max={500} value={draft.fat || undefined} onChange={(v) => setDraft({ ...draft, fat: v ?? 0 })} />
+            <NumField label="Углеводы" unit="г" min={0} max={1000} value={draft.carbs || undefined} onChange={(v) => setDraft({ ...draft, carbs: v ?? 0 })} />
+          </div>
+          {!draft.kcal && draft.protein + draft.fat + draft.carbs > 0 && (
+            <button className="btn btn-block" onClick={() => setDraft({ ...draft, kcal: Math.round(draft.protein * 4 + draft.fat * 9 + draft.carbs * 4) })}>
+              Подставить {Math.round(draft.protein * 4 + draft.fat * 9 + draft.carbs * 4)} ккал по БЖУ
+            </button>
+          )}
+          <details>
+            <summary>Клетчатка, сахар, цена, вес порции</summary>
+            <div className="grid2">
+              <NumField label="Клетчатка" unit="г" min={0} max={200} value={draft.fiber} placeholder={draft.carbs ? `≈ ${fmt(estimate.fiber, 1)} авто` : 'авто'} onChange={(v) => setDraft({ ...draft, fiber: v })} />
+              <NumField label="Сахар" unit="г" min={0} max={500} value={draft.sugar} placeholder={draft.carbs ? `≈ ${fmt(estimate.sugar, 1)} авто` : 'авто'} onChange={(v) => setDraft({ ...draft, sugar: v })} />
+              <NumField label="Цена" unit="₽" min={0} max={100000} value={draft.priceRub} onChange={(v) => setDraft({ ...draft, priceRub: v })} />
+              <NumField label="Вес порции" unit="г" min={0} max={5000} value={draft.grams} onChange={(v) => setDraft({ ...draft, grams: v })} />
             </div>
-          </div>
-        )}
-        {entries.length === 0 ? (
-          <Empty>За {fmtDate(date)} записей нет.</Empty>
-        ) : (
-          <ul className="list">
-            {entries.map((e) => (
-              <li key={e.id} className="spread">
-                <div>
-                  <b>{e.name}</b>
-                  {e.grams ? <span className="muted"> · {e.grams} г</span> : null}
-                  <div className="tiny muted">
-                    {e.kcal} ккал · Б {fmt(e.protein, 0)} · Ж {fmt(e.fat, 0)} · У {fmt(e.carbs, 0)}
-                    {e.fiber != null && ` · кл. ${e.fiberEstimated ? '≈' : ''}${fmt(e.fiber, 0)}`}
-                    {e.sugar != null && ` · сах. ${e.sugarEstimated ? '≈' : ''}${fmt(e.sugar, 0)}`}
-                    {e.priceRub ? ` · ${e.priceRub} ₽ · ${fmt(proteinPer100Rub(e.protein, e.priceRub), 1)} г белка/100 ₽` : ''}
-                  </div>
-                </div>
-                <button
-                  className="btn btn-small btn-danger"
-                  aria-label={`Удалить ${e.name}`}
-                  onClick={async () => {
-                    await getDb().foods.delete(e.id!);
-                    toast('Запись удалена');
-                  }}
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <Card title="Быстрый ввод" extra={<button className="btn btn-small" onClick={() => setSearchOpen(true)}>Поиск продукта</button>}>
-        <label className="field">
-          <span className="field-label">Блюдо</span>
-          <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Курица с рисом" />
-        </label>
-        <div className="grid3" style={{ marginTop: 8 }}>
-          <NumField label="Ккал" min={0} max={5000} value={draft.kcal || undefined} onChange={(v) => setDraft({ ...draft, kcal: v ?? 0 })} />
-          <NumField label="Белок" unit="г" min={0} max={500} value={draft.protein || undefined} onChange={(v) => setDraft({ ...draft, protein: v ?? 0 })} />
-          <NumField label="Жиры" unit="г" min={0} max={500} value={draft.fat || undefined} onChange={(v) => setDraft({ ...draft, fat: v ?? 0 })} />
-          <NumField label="Углев." unit="г" min={0} max={1000} value={draft.carbs || undefined} onChange={(v) => setDraft({ ...draft, carbs: v ?? 0 })} />
-          <NumField label="Клетч." unit="г" min={0} max={200} value={draft.fiber} placeholder={draft.carbs ? `≈ ${fmt(estimate.fiber, 1)} авто` : 'авто'} onChange={(v) => setDraft({ ...draft, fiber: v })} />
-          <NumField label="Сахар" unit="г" min={0} max={500} value={draft.sugar} placeholder={draft.carbs ? `≈ ${fmt(estimate.sugar, 1)} авто` : 'авто'} onChange={(v) => setDraft({ ...draft, sugar: v })} />
-          <NumField label="Цена" unit="₽" min={0} max={100000} value={draft.priceRub} onChange={(v) => setDraft({ ...draft, priceRub: v })} />
-          <NumField label="Вес" unit="г" min={0} max={5000} value={draft.grams} onChange={(v) => setDraft({ ...draft, grams: v })} />
-        </div>
-        {!draft.kcal && draft.protein + draft.fat + draft.carbs > 0 && (
-          <p className="tiny muted">Ккал по БЖУ: {Math.round(draft.protein * 4 + draft.fat * 9 + draft.carbs * 4)} — <button className="btn btn-small" onClick={() => setDraft({ ...draft, kcal: Math.round(draft.protein * 4 + draft.fat * 9 + draft.carbs * 4) })}>подставить</button></p>
-        )}
-        <p className="tiny muted" style={{ marginTop: 6 }}>
-          Клетчатку и сахар можно не заполнять: оценим по углеводам и типу продукта («{estimate.category}») — в дневнике будет пометка «≈».
-        </p>
-        <label className="row tiny" style={{ marginTop: 8 }}>
-          <input type="checkbox" checked={asTemplate} onChange={(e) => setAsTemplate(e.target.checked)} /> Сохранить как шаблон
-        </label>
-        <div className="row" style={{ marginTop: 8 }}>
+            <p className="caption">
+              Клетчатку и сахар можно не заполнять: оценим по углеводам и типу продукта («{estimate.category}») — в дневнике будет пометка «≈».
+            </p>
+          </details>
+          <label className="check">
+            <input type="checkbox" checked={asTemplate} onChange={(e) => setAsTemplate(e.target.checked)} /> Сохранить как шаблон
+          </label>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-block"
             onClick={async () => {
-              await add(draft);
-              setDraft(EMPTY);
+              if (await add(draft)) {
+                setDraft(EMPTY);
+                setAddOpen(false);
+              }
             }}
           >
-            Добавить в {fmtDate(date)}
+            Добавить
           </button>
         </div>
-      </Card>
-
-      <Card title="Мои шаблоны">
-        {templates.length === 0 ? (
-          <Empty>Отметьте «Сохранить как шаблон» при вводе — частые блюда будут добавляться в одно касание.</Empty>
-        ) : (
-          <ul className="list">
-            {templates.map((tp: FoodTemplate) => (
-              <li key={tp.id} className="spread">
-                <div>
-                  <b>{tp.name}</b>
-                  <div className="tiny muted">
-                    {tp.kcal} ккал · Б {fmt(tp.protein, 0)}
-                    {tp.priceRub ? ` · ${tp.priceRub} ₽` : ''}
-                  </div>
-                </div>
-                <div className="row">
-                  <button className="btn btn-small btn-primary" onClick={() => add({ ...tp }, 'template')}>
-                    +
-                  </button>
-                  <button
-                    className="btn btn-small btn-danger"
-                    aria-label={`Удалить шаблон ${tp.name}`}
-                    onClick={async () => {
-                      if (confirm(`Удалить шаблон «${tp.name}»?`)) await getDb().templates.delete(tp.id!);
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      {kcalSeries.length >= 2 && t && (
-        <Card title="Калории за 30 дней">
-          <LineChart unit="ккал" target={t.kcal} series={[{ label: 'Ккал за день', points: kcalSeries, color: 'var(--accent)', dots: true }]} />
-        </Card>
-      )}
+      </Sheet>
 
       <Sheet open={!!imp} onClose={() => setImp(null)} title="Импорт питания">
         {imp && parsedImport && (
           <div className="stack">
             <p className="tiny">
-              Файл: <b>{imp.name}</b> · строк: {imp.table.rows.length}. Колонки распознаются автоматически — проверьте сопоставление. Клетчатка и сахар, если их нет в файле, будут оценены («≈»).
+              Файл <b>{imp.name}</b>, строк: {imp.table.rows.length}. Колонки распознаются автоматически — проверьте сопоставление. Клетчатка и сахар, если их нет в файле, будут оценены («≈»).
             </p>
             <details open={!!parsedImport.error}>
               <summary>Сопоставление колонок</summary>
@@ -307,7 +405,7 @@ export function Nutrition() {
             )}
             {parsedImport.rows[0] && (
               <p className="tiny muted">
-                Пример: {fmtDate(parsedImport.rows[0].date)} · {parsedImport.rows[0].name} · {parsedImport.rows[0].kcal} ккал · Б {fmt(parsedImport.rows[0].protein, 0)}
+                Пример: {fmtDate(parsedImport.rows[0].date)}, {parsedImport.rows[0].name}, {parsedImport.rows[0].kcal} ккал, Б {fmt(parsedImport.rows[0].protein, 0)}
               </p>
             )}
             {parsedImport.errors.length > 0 && <p className="tiny" style={{ color: 'var(--warn)' }}>Пропущено строк: {parsedImport.errors.length}. {parsedImport.errors.slice(0, 3).join('; ')}</p>}
@@ -318,26 +416,50 @@ export function Nutrition() {
         )}
       </Sheet>
 
-      <OffSearch open={searchOpen} onClose={() => setSearchOpen(false)} onAdd={(e) => add(e, 'off')} />
+      <Sheet open={scanOpen} onClose={() => setScanOpen(false)} title="Штрихкод">
+        {scanOpen && (
+          <BarcodeScanner
+            onDetect={(code) => {
+              setScanOpen(false);
+              setScanned(code);
+              setSearchOpen(true);
+            }}
+          />
+        )}
+      </Sheet>
+
+      <Sheet open={aiOpen} onClose={() => setAiOpen(false)} title="Спросить ИИ">
+        <AskAiFood
+          onAdd={async (items) => {
+            await getDb().foods.bulkAdd(items.map(({ warnings: _w, ...it }) => ({ ...withEstimates(it), date, source: 'ai' as const })));
+            toast(`Добавлено записей: ${items.length}`);
+            setAiOpen(false);
+          }}
+        />
+      </Sheet>
+
+      <OffSearch key={scanned} initial={scanned} open={searchOpen} onClose={() => setSearchOpen(false)} onAdd={async (e) => void (await add(e, 'off'))} />
     </div>
   );
 }
 
-function OffSearch({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (e: Draft) => Promise<void> }) {
-  const [q, setQ] = useState('');
+function OffSearch({ open, onClose, onAdd, initial = '' }: { open: boolean; onClose: () => void; onAdd: (e: Draft) => Promise<void>; initial?: string }) {
+  const [q, setQ] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<OffProduct[]>([]);
   const [pick, setPick] = useState<OffProduct | null>(null);
   const [grams, setGrams] = useState<number | undefined>(100);
   const [price, setPrice] = useState<number | undefined>(undefined);
-  const run = async () => {
+  const run = async (query = q) => {
     setBusy(true);
     setErr(null);
     try {
-      const r = await searchOff(q);
+      const r = await searchOff(query);
       setRes(r);
-      if (!r.length) setErr('Ничего не найдено. Попробуйте другое название или штрихкод.');
+      // со сканера приходит один товар — сразу открываем его, чтобы осталось указать порцию
+      if (r.length === 1 && query === initial && initial) setPick(r[0]);
+      if (!r.length) setErr(initial && query === initial ? `Штрихкод ${query} не найден в Open Food Facts. Попробуйте поиск по названию или введите блюдо вручную.` : 'Ничего не найдено. Попробуйте другое название или штрихкод.');
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -345,6 +467,11 @@ function OffSearch({ open, onClose, onAdd }: { open: boolean; onClose: () => voi
     }
   };
   const k = (grams ?? 0) / 100;
+  // пришли со сканера: ищем сразу, один раз при открытии
+  useEffect(() => {
+    if (open && initial) void run(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initial]);
   return (
     <Sheet open={open} onClose={onClose} title="Поиск в Open Food Facts">
       {!navigator.onLine && <p className="banner banner-warn tiny">Нет сети: поиск недоступен, используйте ручной ввод.</p>}
@@ -357,7 +484,7 @@ function OffSearch({ open, onClose, onAdd }: { open: boolean; onClose: () => voi
       >
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Название или штрихкод" style={{ flex: 1 }} aria-label="Запрос" />
         <button className="btn btn-primary" disabled={busy || !q.trim()}>
-          {busy ? '…' : 'Найти'}
+          {busy ? 'Ищу' : 'Найти'}
         </button>
       </form>
       {err && <p className="field-error">{err}</p>}
@@ -365,7 +492,7 @@ function OffSearch({ open, onClose, onAdd }: { open: boolean; onClose: () => voi
         <div className="stack" style={{ marginTop: 10 }}>
           <b>{pick.name}</b>
           <span className="tiny muted">
-            на 100 г: {pick.per100.kcal} ккал · Б {fmt(pick.per100.protein, 1)} · Ж {fmt(pick.per100.fat, 1)} · У {fmt(pick.per100.carbs, 1)}
+            На 100 г: {pick.per100.kcal} ккал, Б {fmt(pick.per100.protein, 1)} Ж {fmt(pick.per100.fat, 1)} У {fmt(pick.per100.carbs, 1)}
           </span>
           <div className="grid2">
             <NumField label="Порция" unit="г" min={1} max={3000} value={grams} onChange={setGrams} />
@@ -403,10 +530,10 @@ function OffSearch({ open, onClose, onAdd }: { open: boolean; onClose: () => voi
               <button className="btn btn-block" style={{ justifyContent: 'space-between', textAlign: 'left' }} onClick={() => setPick(p)}>
                 <span>
                   {p.name}
-                  {p.brand && <span className="muted"> · {p.brand}</span>}
+                  {p.brand && <span className="muted">, {p.brand}</span>}
                 </span>
                 <span className="tiny muted">
-                  {p.per100.kcal} ккал · Б {fmt(p.per100.protein, 0)}
+                  {p.per100.kcal} ккал, Б {fmt(p.per100.protein, 0)}
                 </span>
               </button>
             </li>

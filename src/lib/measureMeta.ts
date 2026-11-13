@@ -2,11 +2,11 @@
 import type { MeasureField } from './data/db';
 
 export type MeasureMode = 'relaxed' | 'flexed' | 'bone' | 'scale';
-export const MODE_RU: Record<MeasureMode, { label: string; icon: string; tone: 'good' | 'accent' | 'warn' | 'muted' }> = {
-  relaxed: { label: 'Не напрягать', icon: '😌', tone: 'good' },
-  flexed: { label: 'Напрячь', icon: '💪', tone: 'accent' },
-  bone: { label: 'Кость · 1 раз', icon: '🦴', tone: 'muted' },
-  scale: { label: 'Весы', icon: '⚖', tone: 'muted' },
+export const MODE_RU: Record<MeasureMode, { label: string; tone: 'good' | 'accent' | 'warn' | 'muted' }> = {
+  relaxed: { label: 'Не напрягать', tone: 'muted' },
+  flexed: { label: 'Напрячь', tone: 'accent' },
+  bone: { label: 'Кость, один раз', tone: 'muted' },
+  scale: { label: 'Весы', tone: 'muted' },
 };
 
 export interface FieldMeta {
@@ -22,7 +22,7 @@ export interface FieldMeta {
 }
 
 export const STANDARD_RULE =
-  'Утром, натощак, после туалета, до тренировки, одной и той же неэластичной лентой. Лента прилегает плотно, но не врезается в кожу. Каждый обхват — 2 раза, записывайте среднее. Напрягать мышцу нужно только там, где написано «Напрячь» 💪, во всех остальных — стоять расслабленно и спокойно дышать.';
+  'Утром, натощак, после туалета, до тренировки, одной и той же неэластичной лентой. Лента прилегает плотно, но не врезается в кожу. Каждый обхват — 2 раза, записывайте среднее. Напрягать мышцу нужно только там, где написано «Напрячь», во всех остальных — стоять расслабленно и спокойно дышать.';
 
 export const FIELD_GROUPS: Array<{ title: string; keys: MeasureField[] }> = [
   { title: 'Вес и рост', keys: ['weight', 'height', 'bodyFatInput'] },

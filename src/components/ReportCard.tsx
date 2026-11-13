@@ -2,7 +2,8 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
 import { buildReport, reportText } from '../lib/report';
-import { Card, Progress, fmt, useToast, Empty } from './ui';
+import { Card, fmt, useToast } from './ui';
+import { Tape } from './Tape';
 
 export function ReportCard() {
   const { d, settings } = useStore();
@@ -22,39 +23,37 @@ export function ReportCard() {
   };
 
   return (
-    <Card title="Мини-отчёт: что качать" extra={<button className="btn btn-small" onClick={copy}>Скопировать</button>}>
+    <Card title="Что качать" extra={<button className="btn btn-small" onClick={copy}>Скопировать</button>}>
       {!hasAny ? (
-        <Empty>Нужны замеры (вес, шея, талия, обхваты мышц, запястье и лодыжка) и импорт тренировок.</Empty>
+        <p className="muted" style={{ margin: '8px 0 0' }}>Отчёт появится, когда будут замеры (вес, шея, талия, обхваты мышц, запястье и лодыжка) и импорт тренировок.</p>
       ) : (
         <div className="stack">
-          <p>
-            <b>{r.headline}</b>
-          </p>
+          <p style={{ fontWeight: 600, marginTop: 8 }}>{r.headline}</p>
 
           {r.zones.length > 0 && (
             <>
-              <h3>Эстетика — по приоритету</h3>
-              <ol style={{ paddingLeft: 18, margin: 0 }}>
-                {r.zones.map((z) => (
-                  <li key={z.zone} style={{ marginBottom: 10 }}>
-                    <div className="spread">
-                      <b>{z.label}</b>
-                      <span className="tiny">
-                        {fmt(z.current, 1)} → {fmt(z.target, 1)} см
-                      </span>
-                    </div>
-                    <Progress value={z.pct} />
-                    <div className="tiny muted" style={{ marginTop: 3 }}>
-                      {Math.round(z.pct)} % ({z.basis}) · {z.sets}
-                      {z.exercises.length > 0 && <> · {z.exercises.slice(0, 3).join(', ')}</>}
-                    </div>
-                  </li>
+              <h3 className="group-title">Эстетика, по приоритету</h3>
+              <div>
+                {r.zones.map((z, i) => (
+                  <div key={z.zone} className="pattern">
+                    <Tape
+                      label={`${i + 1}. ${z.label}`}
+                      value={z.pct}
+                      max={100}
+                      caption={`${fmt(z.current, 1)} → ${fmt(z.target, 1)} см`}
+                      ariaText={`${z.label}: сейчас ${fmt(z.current, 1)}, цель ${fmt(z.target, 1)} сантиметров, выполнено ${Math.round(z.pct)} процентов`}
+                    />
+                    <small className="muted">
+                      {Math.round(z.pct)} % ({z.basis}); {z.sets}
+                      {z.exercises.length > 0 && <>: {z.exercises.slice(0, 3).join(', ')}</>}
+                    </small>
+                  </div>
                 ))}
-              </ol>
+              </div>
             </>
           )}
 
-          <h3>Сила — от слабого движения</h3>
+          <h3 className="group-title">Сила, от слабого движения</h3>
           <table className="tbl">
             <tbody>
               {r.strength.map((p) => (
@@ -63,12 +62,12 @@ export function ReportCard() {
                   <td style={{ textAlign: 'left' }}>
                     {p.exercise ? (
                       <>
-                        {p.exercise} · <b>{Math.round(p.score!)}</b>
+                        {p.exercise}, балл <b>{Math.round(p.score!)}</b>
                       </>
                     ) : (
                       <span className="muted">нет данных</span>
                     )}
-                    {p.exercises.length > 0 && (p.score == null || p.score < 60) && <div className="tiny muted">→ {p.exercises.slice(0, 2).join(', ')}</div>}
+                    {p.exercises.length > 0 && (p.score == null || p.score < 60) && <div className="tiny muted">Добавить: {p.exercises.slice(0, 2).join(', ')}</div>}
                   </td>
                 </tr>
               ))}
@@ -83,7 +82,7 @@ export function ReportCard() {
 
           {r.body.length > 0 && (
             <>
-              <h3>Состав тела и питание</h3>
+              <h3 className="group-title">Состав тела и питание</h3>
               <ul className="tiny" style={{ paddingLeft: 18, margin: 0 }}>
                 {r.body.map((b) => (
                   <li key={b}>{b}</li>
@@ -94,7 +93,7 @@ export function ReportCard() {
 
           {r.forecast && (
             <>
-              <h3>Прогноз (модель)</h3>
+              <h3 className="group-title">Прогноз (модель)</h3>
               <table className="tbl">
                 <thead>
                   <tr>
@@ -134,7 +133,7 @@ export function ReportCard() {
                 </tbody>
               </table>
               <p className="tiny muted">
-                {r.forecast.half != null && `Половина пути к потолку ≈ ${Math.round(r.forecast.half)} мес. `}Посмотреть тело в будущем: Главная → 3D → «Прогноз».
+                {r.forecast.half != null && `Половина пути к потолку ≈ ${Math.round(r.forecast.half)} мес. `}Посмотреть тело в будущем: «Сегодня», режим модели «Прогноз».
               </p>
             </>
           )}
@@ -144,7 +143,7 @@ export function ReportCard() {
               {n}
             </p>
           ))}
-          {shown && <textarea readOnly value={shown} rows={10} onFocus={(e) => e.currentTarget.select()} />}
+          {shown && <textarea readOnly value={shown} rows={10} onFocus={(e) => e.currentTarget.select()} aria-label="Текст отчёта" />}
         </div>
       )}
     </Card>

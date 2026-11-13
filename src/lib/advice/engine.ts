@@ -89,6 +89,9 @@ export interface AdviceContext {
   reevesLagging?: Array<{ name: string; pct: number }>;
   shoulderWaist?: number;
   daysSinceBackup?: number | null;
+  /** средний сон за последние 14 дней, часы, и сколько ночей записано */
+  sleepAvgHours?: number;
+  sleepNights?: number;
 }
 
 export interface Advice {
@@ -213,6 +216,10 @@ export function evaluateCondition(c: Condition, ctx: AdviceContext): Match {
       const pp = ctx.pushPull;
       if (!pp || pp.push <= pp.pull * (c.ratio as number)) return null;
       return { vars: { push: pp.push, pull: pp.pull, extra: pp.kyphosis ? ' При сутулости это особенно важно.' : '' }, priority: pp.kyphosis ? 4 : 2 };
+    }
+    case 'sleepAvgBelow': {
+      if (ctx.sleepAvgHours === undefined || (ctx.sleepNights ?? 0) < (c.minNights as number) || ctx.sleepAvgHours >= (c.hours as number)) return null;
+      return { vars: { value: r1(ctx.sleepAvgHours), nights: ctx.sleepNights! }, priority: 3 };
     }
     case 'backupOlderThan': {
       if (ctx.daysSinceBackup === undefined) return null;

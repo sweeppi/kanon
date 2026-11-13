@@ -180,6 +180,8 @@ const RULES: Rule[] = [
   R(/assisted (pull|chin)|гравитрон|подтягивани[\wа-яё]* .*(помощ|гравитрон)/, ['back'], ['biceps'], 'vPull'),
   R(/pull ?up|chin ?up|подтягиван/, ['back'], ['biceps', 'rearDelts'], 'vPull'),
   R(/pulldown|pull down|тяга верхн|верхн[\wа-яё]* блок|тяга .*к груди|вертикальн[\wа-яё]* тяга|тяга вертикальн|тяга сверху/, ['back'], ['biceps', 'rearDelts'], 'vPull'),
+  // ---------- румынская тяга: до горизонтальных тяг, иначе «румынская тяга с гантелями» считалась бы тягой для спины ----------
+  R(/romanian|rdl|stiff leg|stiff legged|straight leg deadlift|румынск|мертв[\wа-яё]* тяг|на прямых ногах/, ['hamstrings', 'glutes'], ['lowerBack', 'forearms'], 'hinge', ['axial']),
   // ---------- спина: горизонтальные тяги ----------
   R(/chest supported|seal row|incline .*row|row .*incline|с упором|упором (в|на)|на наклонной скамье.*тяга|тяга .*на наклонной/, ['back'], ['rearDelts', 'biceps'], 'hPull'),
   R(/pendlay|yates|bent over row|barbell row|тяга штанги в наклоне|тяга .*в наклоне|t bar row|т гриф|t-bar/, ['back'], ['rearDelts', 'biceps', 'lowerBack'], 'hPull', ['axial']),
@@ -190,7 +192,6 @@ const RULES: Rule[] = [
   R(/hip thrust|glute bridge|pull through|ягодичн[\wа-яё]* мост|мостик|тяга бедром|ягодичн[\wа-яё]* тяг/, ['glutes'], ['hamstrings'], 'hinge'),
   R(/hip abduct|abductor|абдукц|разведени[\wа-яё]* ног|отведени[\wа-яё]* ног[\wа-яё]* в сторон|ягодичн[\wа-яё]* .*сидя/, ['glutes'], [], 'isolation'),
   // ---------- становые ----------
-  R(/romanian|rdl|stiff leg|stiff legged|straight leg deadlift|румынск|мертв[\wа-яё]* тяг|на прямых ногах/, ['hamstrings', 'glutes'], ['lowerBack', 'forearms'], 'hinge', ['axial']),
   R(/rack pull|block pull|тяга с плинт|тяга с бруск/, ['back', 'glutes', 'traps'], ['lowerBack'], 'hinge', ['axial', 'valsalva']),
   R(/deadlift|становая|становой|тяга становая|sumo|сумо|trap bar|трэп/, ['glutes', 'hamstrings', 'back'], ['quads', 'traps', 'forearms', 'lowerBack'], 'hinge', ['axial', 'valsalva']),
   // ---------- ноги ----------

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "verifiedAt": "2026-11-09",
+  "verifiedAt": "2026-11-13",
   "verifiedWith": "PubMed E-utilities esummary (PMID) + Crossref (DOI): scripts/verify-sources.mjs",
   "sources": {
     "schoenfeld2017": {
@@ -20,6 +20,24 @@
       "title": "Effects of Resistance Training Frequency on Measures of Muscle Hypertrophy: A Systematic Review and Meta-Analysis",
       "journal": "Sports Med",
       "type": "meta-analysis"
+    },
+    "schoenfeld2017load": {
+      "pmid": "28834797",
+      "doi": "10.1519/JSC.0000000000002200",
+      "authors": "Schoenfeld BJ, Grgic J, Ogborn D, Krieger JW",
+      "year": 2017,
+      "title": "Strength and Hypertrophy Adaptations Between Low- vs. High-Load Resistance Training: A Systematic Review and Meta-analysis",
+      "journal": "J Strength Cond Res",
+      "type": "meta-analysis"
+    },
+    "schoenfeld2016rest": {
+      "pmid": "26605807",
+      "doi": "10.1519/JSC.0000000000001272",
+      "authors": "Schoenfeld BJ, Pope ZK, Benik FM, et al.",
+      "year": 2016,
+      "title": "Longer Interset Rest Periods Enhance Muscle Strength and Hypertrophy in Resistance-Trained Men",
+      "journal": "J Strength Cond Res",
+      "type": "RCT"
     },
     "garthe2011": {
       "pmid": "21558571",
@@ -318,6 +336,22 @@
         "knowles2018"
       ],
       "evidence": "meta-analysis"
+    },
+    {
+      "id": "sleep-low",
+      "kind": "research",
+      "claim": "Обзор: недостаток сна связан со снижением мышечной силы, заметнее всего в многосуставных движениях. Порог 7 часов — общий ориентир для взрослых, а не вывод этого обзора.",
+      "condition": {
+        "type": "sleepAvgBelow",
+        "hours": 7,
+        "minNights": 5
+      },
+      "recommendation": "В среднем {value} ч сна за {nights} записанных ночей из последних 14. Если силовые стоят или падают, сначала попробуйте добавить сна: ложиться раньше проще, чем менять программу.",
+      "sources": [
+        "knowles2018"
+      ],
+      "evidence": "review",
+      "uncertain": true
     },
     {
       "id": "whtr-high",

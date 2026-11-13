@@ -4,6 +4,9 @@ import type { WorkoutSet } from '../hevy/hevy';
 import type { ExerciseInfo } from '../hevy/exercises';
 import type { HealthFlags } from '../health';
 import { DEFAULT_ACTIVITY, type ActivityProfile } from '../calc/activity';
+import type { Program } from '../program/types';
+import type { WaterDay } from '../water';
+import type { DailyEntry } from '../daily';
 
 export const MEASURE_FIELDS = [
   'weight',
@@ -40,7 +43,8 @@ export interface FoodEntry {
   sugar?: number;
   priceRub?: number;
   grams?: number;
-  source?: 'manual' | 'template' | 'off' | 'import' | 'copy';
+  /** 'ai' — оценка ИИ, вставленная пользователем: в дневнике помечается как приблизительная */
+  source?: 'manual' | 'template' | 'off' | 'import' | 'copy' | 'ai';
   /** клетчатка/сахар оценены автоматически (не с этикетки) */
   fiberEstimated?: boolean;
   sugarEstimated?: boolean;
@@ -92,6 +96,10 @@ export interface Settings {
   lastBackupAt: string | null;
   onboarded: boolean;
   remindEveryDays: number;
+  /** программа, по которой сейчас идут тренировки (id в таблице programs) */
+  activeProgramId: number | null;
+  /** цель по воде на день, мл — задаёт пользователь */
+  waterGoalMl: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -113,6 +121,8 @@ export const DEFAULT_SETTINGS: Settings = {
   lastBackupAt: null,
   onboarded: false,
   remindEveryDays: 7,
+  activeProgramId: null,
+  waterGoalMl: 2000,
 };
 
 export interface KV {
@@ -128,6 +138,9 @@ export class KanonDB extends Dexie {
   photos!: EntityTable<Photo, 'id'>;
   exerciseOverrides!: EntityTable<ExerciseOverride, 'title'>;
   kv!: EntityTable<KV, 'key'>;
+  programs!: EntityTable<Program, 'id'>;
+  water!: EntityTable<WaterDay, 'date'>;
+  daily!: EntityTable<DailyEntry, 'date'>;
 
   constructor(name = 'kanon') {
     super(name);
@@ -140,10 +153,16 @@ export class KanonDB extends Dexie {
       exerciseOverrides: 'title',
       kv: 'key',
     });
+    // v2: программы тренировок. Старые таблицы не меняются, данные версии 1 остаются на месте.
+    this.version(2).stores({ programs: '++id' });
+    // v3: вода по дням
+    this.version(3).stores({ water: 'date' });
+    // v4: сон и шаги по дням
+    this.version(4).stores({ daily: 'date' });
   }
 }
 
-export const TABLES = ['measurements', 'sets', 'foods', 'templates', 'photos', 'exerciseOverrides', 'kv'] as const;
+export const TABLES = ['measurements', 'sets', 'foods', 'templates', 'photos', 'exerciseOverrides', 'kv', 'programs', 'water', 'daily'] as const;
 export type TableName = (typeof TABLES)[number];
 
 let _db: KanonDB | null = null;

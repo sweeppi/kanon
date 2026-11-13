@@ -2,21 +2,24 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../lib/store';
 import { getDb, TABLES, type Settings } from '../lib/data/db';
 import { exportBackup, importBackup, validateBackup, canonical, measurementsCsv, workoutsCsv, downloadFile, BackupError, type BackupFile } from '../lib/data/backup';
-import { Card, NumField, Seg, useToast, fmtDate, pickFile, Sheet, fmt } from '../components/ui';
+import { Card, NumField, Seg, Fold, ScreenHead, useToast, fmtDate, pickFile, Sheet, fmt } from '../components/ui';
+import { Icon } from '../components/icons';
 import { buildIcs, defaultReminders } from '../lib/ics';
 import { today } from '../lib/derive';
 import { isIOS, isStandalone } from '../lib/platform';
 import { FIELDS } from '../lib/measureMeta';
 import { ActivityEditor, HealthEditor } from '../components/ProfileEditors';
+import { recentStepsAvg } from '../lib/stats';
+import { actionLinks } from '../lib/links';
 
 export function SettingsPage() {
-  const { settings: s, setSettings, ms, sets, d } = useStore();
+  const { settings: s, setSettings, ms, sets, d, daily } = useStore();
   const toast = useToast();
   const set = (p: Partial<Settings>) => void setSettings(p);
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [usage, setUsage] = useState<string>('');
   const [restore, setRestore] = useState<{ file: BackupFile; name: string } | null>(null);
-  const [verify, setVerify] = useState<string | null>(null);
+  const [verify, setVerify] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -57,7 +60,7 @@ export function SettingsPage() {
       // проверка: экспортируем снова и сравниваем с файлом
       const again = await exportBackup();
       const ok = canonical(again) === canonical(restore.file);
-      setVerify(ok ? '✓ Восстановлено. Проверка: данные полностью совпадают с файлом бэкапа.' : '⚠ Восстановлено, но проверка нашла расхождения — сохраните оба файла и сообщите об ошибке.');
+      setVerify({ ok, text: ok ? 'Восстановлено. Проверка: данные полностью совпадают с файлом бэкапа.' : 'Восстановлено, но проверка нашла расхождения — сохраните оба файла и сообщите об ошибке.' });
       setRestore(null);
       // помним, что у пользователя есть этот бэкап (после сверки, чтобы не влиять на проверку)
       await setSettings({ lastBackupAt: restore.file.exportedAt });
@@ -68,161 +71,217 @@ export function SettingsPage() {
 
   return (
     <div>
-      <h1>Настройки</h1>
+      <ScreenHead title="Настройки" />
 
-      <Card title="Профиль">
-        <div className="grid2">
-          <label className="field">
-            <span className="field-label">Пол (для формул)</span>
-            <select value={s.sex} onChange={(e) => set({ sex: e.target.value as Settings['sex'] })}>
-              <option value="male">Мужской</option>
-              <option value="female">Женский</option>
-            </select>
-          </label>
-          <NumField label="Возраст" unit="лет" min={14} max={90} step={1} value={s.age} onChange={(v) => v && set({ age: v })} />
-          <NumField label="Рост" unit="см" min={120} max={230} value={s.heightCm} onChange={(v) => v && set({ heightCm: v })} hint="Если рост есть в замерах — берётся оттуда" />
-          <NumField label="Стаж" unit="лет" min={0} max={50} value={s.trainingYears} onChange={(v) => v !== undefined && set({ trainingYears: v })} />
-        </div>
-      </Card>
-
-      <button className="btn btn-small" style={{ marginBottom: 12 }} onClick={() => set({ onboarded: false })}>
-        Пройти настройку профиля заново
-      </button>
-
-      <Card title="Активность">
-        <ActivityEditor s={s} set={set} weightKg={d.values.weight} />
-      </Card>
-
-      <Card title="Цели">
-        <div className="grid2">
-          <NumField label="Целевой вес" unit="кг" min={30} max={250} value={s.goalWeightKg || undefined} onChange={(v) => set({ goalWeightKg: v ?? 0 })} hint="Пусто — без цели по весу" />
-          <NumField label="Целевой % жира" unit="%" min={4} max={40} value={s.goalBodyFat} onChange={(v) => v && set({ goalBodyFat: v })} />
-          <NumField label="Темп сушки" unit="%/нед" min={0.25} max={1.5} step={0.05} value={s.cutRatePct} onChange={(v) => v && set({ cutRatePct: v })} hint="Рекомендуют 0,5–1 % (Helms 2014)" />
-          <div />
-          <NumField label="Ккал вручную" unit="ккал" min={800} max={6000} step={10} value={s.kcalOverride} onChange={(v) => set({ kcalOverride: v ?? null })} hint="Пусто — считается автоматически" />
-          <NumField label="Белок вручную" unit="г" min={30} max={400} step={1} value={s.proteinOverride} onChange={(v) => set({ proteinOverride: v ?? null })} hint="Пусто — по Morton/Helms" />
-        </div>
-        <details style={{ marginTop: 8 }}>
-          <summary>Целевые обхваты для режима «Цель» (необязательно)</summary>
-          <p className="tiny muted">По умолчанию цель = пропорции Ривза. Здесь можно задать свои.</p>
-          <div className="grid2">
-            {FIELDS.filter((f) => !['weight', 'height', 'bodyFatInput', 'wrist', 'ankle', 'knee'].includes(f.key)).map((f) => (
-              <NumField
-                key={f.key}
-                label={f.label}
-                unit={f.unit}
-                min={f.min}
-                max={f.max}
-                value={s.goalMeasurements[f.key]}
-                onChange={(v) => {
-                  const g = { ...s.goalMeasurements };
-                  if (v === undefined) delete g[f.key];
-                  else g[f.key] = v;
-                  set({ goalMeasurements: g });
-                }}
-              />
-            ))}
-          </div>
-        </details>
-      </Card>
-
-      <Card title="Здоровье и ограничения">
-        <HealthEditor s={s} set={set} />
-      </Card>
-
-      <Card title="Оформление">
-        <Seg<Settings['theme']>
-          value={s.theme}
-          onChange={(t) => set({ theme: t })}
-          label="Тема"
-          options={[
-            ['dark', 'Тёмная'],
-            ['light', 'Светлая'],
-            ['system', 'Как в системе'],
-          ]}
-        />
-      </Card>
-
-      <Card title="Бэкап и экспорт">
-        <p className="tiny">
-          Все данные хранятся только на этом устройстве. Последний бэкап: <b>{s.lastBackupAt ? fmtDate(s.lastBackupAt) : 'не было'}</b>. Делайте бэкап раз в неделю и храните файл в «Файлах» / iCloud Drive.
+      <Card title="Бэкап">
+        <p className="tiny muted" style={{ marginTop: 8 }}>
+          Все данные хранятся только на этом устройстве. Последний бэкап: <span style={{ color: 'var(--text)' }}>{s.lastBackupAt ? fmtDate(s.lastBackupAt) : 'не было'}</span>. Делайте бэкап раз в неделю и храните файл в «Файлах» или iCloud Drive.
         </p>
-        <div className="grid2">
+        <div className="actions" style={{ marginTop: 12 }}>
           <button className="btn btn-primary" onClick={doBackup}>
-            Сохранить бэкап (JSON)
+            Сохранить бэкап
           </button>
           <button className="btn" onClick={chooseRestore}>
-            Восстановить…
-          </button>
-          <button className="btn" disabled={!ms.length} onClick={() => downloadFile(`kanon-zamery-${today()}.csv`, measurementsCsv(ms), 'text/csv')}>
-            Замеры → CSV
-          </button>
-          <button className="btn" disabled={!sets.length} onClick={() => downloadFile(`kanon-trenirovki-${today()}.csv`, workoutsCsv(sets), 'text/csv')}>
-            Тренировки → CSV
+            Восстановить
           </button>
         </div>
         {verify && (
-          <p className="tiny" style={{ marginTop: 8, color: verify.startsWith('✓') ? 'var(--good)' : 'var(--warn)' }}>
-            {verify}
+          <p className={`note ${verify.ok ? 'note-good' : 'note-warn'}`} style={{ margin: '12px 0 0' }}>
+            <Icon name={verify.ok ? 'check' : 'warning'} size={18} />
+            <span>{verify.text}</span>
           </p>
         )}
       </Card>
 
-      <Card title="Хранилище и установка">
-        <ul className="list tiny">
-          <li>
-            Постоянное хранилище: <b>{persisted === null ? 'неизвестно' : persisted ? 'разрешено' : 'не разрешено'}</b>
-            {!persisted && (
+      <div className="section-gap">
+        <Fold title="Профиль">
+          <div className="grid2">
+            <label className="field">
+              <span className="field-label">Пол (для формул)</span>
+              <select value={s.sex} onChange={(e) => set({ sex: e.target.value as Settings['sex'] })}>
+                <option value="male">Мужской</option>
+                <option value="female">Женский</option>
+              </select>
+            </label>
+            <NumField label="Возраст" unit="лет" min={14} max={90} step={1} value={s.age} onChange={(v) => v && set({ age: v })} />
+            <NumField label="Рост" unit="см" min={120} max={230} value={s.heightCm} onChange={(v) => v && set({ heightCm: v })} hint="Если рост есть в замерах — берётся оттуда" />
+            <NumField label="Стаж" unit="лет" min={0} max={50} value={s.trainingYears} onChange={(v) => v !== undefined && set({ trainingYears: v })} />
+          </div>
+          <div className="actions">
+            <button className="btn" onClick={() => set({ onboarded: false })}>
+              Пройти настройку заново
+            </button>
+          </div>
+        </Fold>
+
+        <Fold title="Активность">
+          <ActivityEditor s={s} set={set} weightKg={d.values.weight} stepsAvg={recentStepsAvg(daily, d.now)} />
+        </Fold>
+
+        <Fold title="Цели">
+          <div className="grid2">
+            <NumField label="Целевой вес" unit="кг" min={30} max={250} value={s.goalWeightKg || undefined} onChange={(v) => set({ goalWeightKg: v ?? 0 })} hint="Пусто — без цели по весу" />
+            <NumField label="Целевой % жира" unit="%" min={4} max={40} value={s.goalBodyFat} onChange={(v) => v && set({ goalBodyFat: v })} />
+            <NumField label="Темп сушки" unit="%/нед" min={0.25} max={1.5} step={0.05} value={s.cutRatePct} onChange={(v) => v && set({ cutRatePct: v })} hint="Рекомендуют 0,5–1 % (Helms 2014)" />
+            <div />
+            <NumField label="Калории вручную" unit="ккал" min={800} max={6000} step={10} value={s.kcalOverride} onChange={(v) => set({ kcalOverride: v ?? null })} hint="Пусто — считается автоматически" />
+            <NumField label="Белок вручную" unit="г" min={30} max={400} step={1} value={s.proteinOverride} onChange={(v) => set({ proteinOverride: v ?? null })} hint="Пусто — по Morton и Helms" />
+            <NumField label="Вода в день" unit="мл" min={500} max={8000} step={50} value={s.waterGoalMl} onChange={(v) => v && set({ waterGoalMl: Math.round(v) })} hint="Ваша цель; единой нормы нет" />
+          </div>
+          <details style={{ marginTop: 12 }}>
+            <summary>Целевые обхваты для режима «Цель» (необязательно)</summary>
+            <p className="caption">По умолчанию цель — эстетический итог прогноза. Здесь можно задать свои обхваты.</p>
+            <div className="grid2">
+              {FIELDS.filter((f) => !['weight', 'height', 'bodyFatInput', 'wrist', 'ankle', 'knee'].includes(f.key)).map((f) => (
+                <NumField
+                  key={f.key}
+                  label={f.label}
+                  unit={f.unit}
+                  min={f.min}
+                  max={f.max}
+                  value={s.goalMeasurements[f.key]}
+                  onChange={(v) => {
+                    const g = { ...s.goalMeasurements };
+                    if (v === undefined) delete g[f.key];
+                    else g[f.key] = v;
+                    set({ goalMeasurements: g });
+                  }}
+                />
+              ))}
+            </div>
+          </details>
+        </Fold>
+
+        <Fold title="Здоровье и ограничения">
+          <HealthEditor s={s} set={set} />
+        </Fold>
+
+        <Fold title="Оформление">
+          <Seg<Settings['theme']>
+            value={s.theme}
+            onChange={(t) => set({ theme: t })}
+            label="Тема"
+            options={[
+              ['dark', 'Тёмная'],
+              ['light', 'Светлая'],
+              ['system', 'Как в системе'],
+            ]}
+          />
+        </Fold>
+
+        <Fold title="Экспорт в CSV">
+          <div className="actions" style={{ marginTop: 0 }}>
+            <button className="btn" disabled={!ms.length} onClick={() => downloadFile(`kanon-zamery-${today()}.csv`, measurementsCsv(ms), 'text/csv')}>
+              Замеры
+            </button>
+            <button className="btn" disabled={!sets.length} onClick={() => downloadFile(`kanon-trenirovki-${today()}.csv`, workoutsCsv(sets), 'text/csv')}>
+              Тренировки
+            </button>
+          </div>
+        </Fold>
+
+        <Fold title="Напоминания">
+          <p className="caption" style={{ marginTop: 0 }}>
+            Push-уведомления на iOS требуют сервер, поэтому используем календарь: скачайте файл и добавьте события в «Календарь».
+          </p>
+          <NumField label="Замеры каждые" unit="дн." min={1} max={60} step={1} value={s.remindEveryDays} onChange={(v) => v && set({ remindEveryDays: Math.round(v) })} />
+          <div className="actions">
+            <button className="btn" onClick={() => downloadFile('kanon-napominaniya.ics', buildIcs(defaultReminders(today(), s.remindEveryDays)), 'text/calendar')}>
+              Скачать напоминания (.ics)
+            </button>
+          </div>
+        </Fold>
+
+        <Fold title="Быстрые команды и Siri">
+          <p className="caption" style={{ marginTop: 0 }}>
+            Эти адреса открывают приложение сразу на нужном действии. В «Командах» iPhone создайте команду с действием «Открыть URL», вставьте адрес и назовите её фразой — Siri будет запускать её по голосу.
+          </p>
+          <ul className="entries">
+            {actionLinks(location.href).map((l) => (
+              <li key={l.id} className="entry">
+                <div className="entry-main">
+                  <b>{l.title}</b>
+                  <small className="muted">Фраза: «{l.phrase}»</small>
+                  <small className="muted" style={{ overflowWrap: 'anywhere' }}>
+                    {l.url}
+                  </small>
+                </div>
+                <button
+                  className="btn btn-small"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(l.url);
+                      toast('Адрес скопирован');
+                    } catch {
+                      toast('Браузер не дал скопировать — выделите адрес вручную');
+                    }
+                  }}
+                >
+                  Копировать
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="note note-warn" style={{ margin: '12px 0 0' }}>
+            <Icon name="warning" size={18} />
+            <span>
+              На iPhone не проверено. Команда может открыть адрес в Safari, а не в установленном приложении, а у них раздельные данные: в Safari вы увидите пустой «Канон». Сначала проверьте на команде «Открыть Канон»: если открылось не приложение с вашими данными — не пользуйтесь этим способом.
+            </span>
+          </p>
+        </Fold>
+
+        <Fold title="Хранилище и установка">
+          <div className="kv">
+            <span>Постоянное хранилище</span>
+            <span>{persisted === null ? 'неизвестно' : persisted ? 'разрешено' : 'не разрешено'}</span>
+          </div>
+          <div className="kv">
+            <span>Занято</span>
+            <span>{usage || '—'}</span>
+          </div>
+          <div className="kv">
+            <span>Режим</span>
+            <span>{isStandalone() ? 'установлено как приложение' : 'вкладка браузера'}</span>
+          </div>
+          {!persisted && (
+            <div className="actions">
               <button
-                className="btn btn-small"
-                style={{ marginLeft: 8 }}
+                className="btn"
                 onClick={async () => {
                   const r = await navigator.storage?.persist?.();
                   setPersisted(!!r);
                   toast(r ? 'Браузер обещал не удалять данные' : 'Браузер отказал — установите приложение на экран «Домой»');
                 }}
               >
-                Запросить
+                Запросить постоянное хранилище
               </button>
-            )}
-          </li>
-          <li>Занято: {usage || '—'}</li>
-          <li>Режим: {isStandalone() ? 'установлено как приложение ✓' : 'открыто во вкладке браузера'}</li>
-        </ul>
-        <p className="tiny muted">
-          Важно для iPhone: Safari может стереть данные сайта, который не установлен на экран «Домой» и не открывался ~7 дней. Установка: {isIOS() ? '' : 'на iPhone в Safari — '}«Поделиться» → «На экран „Домой“». Даже после установки делайте бэкапы: удаление иконки удаляет и данные.
-        </p>
-      </Card>
+            </div>
+          )}
+          <p className="caption" style={{ margin: '12px 0 0' }}>
+            Важно для iPhone: Safari может стереть данные сайта, который не установлен на экран «Домой» и не открывался около 7 дней. Установка: {isIOS() ? '' : 'на iPhone в Safari — '}«Поделиться», затем «На экран „Домой“». Даже после установки делайте бэкапы: удаление иконки удаляет и данные.
+          </p>
+        </Fold>
 
-      <Card title="Напоминания">
-        <p className="tiny muted">Push-уведомления на iOS требуют сервер, поэтому используем календарь: скачайте файл и добавьте события в «Календарь».</p>
-        <div className="row">
-          <NumField label="Замеры каждые" unit="дн." min={1} max={60} step={1} value={s.remindEveryDays} onChange={(v) => v && set({ remindEveryDays: Math.round(v) })} />
-        </div>
-        <button className="btn" style={{ marginTop: 8 }} onClick={() => downloadFile('kanon-napominaniya.ics', buildIcs(defaultReminders(today(), s.remindEveryDays)), 'text/calendar')}>
-          Скачать напоминания (.ics)
-        </button>
-      </Card>
-
-      <Card title="О приложении">
-        <p className="tiny">
-          «Канон» v{__APP_VERSION__}. 3D-модель — MakeHuman (CC0). Продукты — Open Food Facts (ODbL). Исследования — PubMed. Расчёты приблизительные; не медицинский совет.
-        </p>
-        <button
-          className="btn btn-danger btn-small"
-          onClick={async () => {
-            if (!confirm('Удалить ВСЕ данные приложения на этом устройстве? Сначала сделайте бэкап.')) return;
-            if (!confirm('Точно? Восстановить можно только из файла бэкапа.')) return;
-            const db = getDb();
-            await db.transaction('rw', TABLES.map((t) => db.table(t)), async () => {
-              for (const t of TABLES) await db.table(t).clear();
-            });
-            toast('Все данные удалены');
-          }}
-        >
-          Удалить все данные
-        </button>
-      </Card>
+        <Fold title="О приложении">
+          <p className="tiny muted" style={{ marginTop: 0 }}>
+            «Канон» v{__APP_VERSION__}. 3D-модель — MakeHuman (CC0). Продукты — Open Food Facts (ODbL). Исследования — PubMed. Шрифт Forum (SIL OFL). Расчёты приблизительные; не медицинский совет.
+          </p>
+          <button
+            className="btn btn-danger"
+            onClick={async () => {
+              if (!confirm('Удалить ВСЕ данные приложения на этом устройстве? Сначала сделайте бэкап.')) return;
+              if (!confirm('Точно? Восстановить можно только из файла бэкапа.')) return;
+              const db = getDb();
+              await db.transaction('rw', TABLES.map((t) => db.table(t)), async () => {
+                for (const t of TABLES) await db.table(t).clear();
+              });
+              toast('Все данные удалены');
+            }}
+          >
+            Удалить все данные
+          </button>
+        </Fold>
+      </div>
 
       <Sheet open={!!restore} onClose={() => setRestore(null)} title="Восстановить из бэкапа?">
         {restore && (

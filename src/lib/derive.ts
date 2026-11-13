@@ -1,4 +1,5 @@
 // Все производные показатели из сырых данных. Чистая функция — UI только отображает результат.
+import type { DailyEntry } from './daily';
 import type { Measurement, FoodEntry, Settings, MeasureField, ExerciseOverride } from './data/db';
 import type { WorkoutSet } from './hevy/hevy';
 import {
@@ -307,6 +308,7 @@ export function deriveAll(
   s: Settings,
   overrides: ExerciseOverride[],
   now = today(),
+  daily: DailyEntry[] = [],
 ): Derived {
   const { values, dates } = latestValues(ms);
   const comp = composition(values, s);
@@ -381,7 +383,10 @@ export function deriveAll(
   const w14 = weights.filter((p) => daysBetween(p.date, now) < 14 && daysBetween(p.date, now) >= 0);
   const reevesNames: Record<string, string> = { bicepsFlexed: 'бицепс', calf: 'голень', neck: 'шея', chest: 'грудь', waist: 'талия', thigh: 'бедро' };
 
+  const sleep14 = daily.filter((x) => x.sleepMin !== undefined && daysBetween(x.date, now) >= 0 && daysBetween(x.date, now) < 14).map((x) => x.sleepMin!);
   const adviceCtx: AdviceContext = {
+    sleepAvgHours: sleep14.length ? sleep14.reduce((a, b) => a + b, 0) / sleep14.length / 60 : undefined,
+    sleepNights: sleep14.length,
     weeklySets: weekly.avg,
     weeklyFrequency: weekly.freq,
     weightRatePctPerWeek: ratePctPerWeek ?? undefined,

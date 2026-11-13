@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { StoreProvider, useStore } from './lib/store';
 import { ToastProvider } from './components/ui';
@@ -11,34 +11,31 @@ import { Nutrition } from './pages/Nutrition';
 import { AdvicePage } from './pages/Advice';
 import { SettingsPage } from './pages/Settings';
 import { Onboarding } from './pages/Onboarding';
+import { More } from './pages/More';
+import { Workout } from './pages/Workout';
+import { ProgramPage } from './pages/Program';
+import { StatsPage } from './pages/Stats';
+import { AcademyPage } from './pages/Academy';
+import { ReportPage } from './pages/Report';
 import { Logo } from './components/Logo';
+import { Icon, type IconName } from './components/icons';
 
-export type Route = 'home' | 'measure' | 'strength' | 'food' | 'advice' | 'settings';
-const ROUTES: Route[] = ['home', 'measure', 'strength', 'food', 'advice', 'settings'];
+export type Route = 'home' | 'measure' | 'strength' | 'food' | 'advice' | 'settings' | 'more' | 'workout' | 'program' | 'stats' | 'academy' | 'report';
+const ROUTES: Route[] = ['home', 'measure', 'strength', 'food', 'advice', 'settings', 'more', 'workout', 'program', 'stats', 'academy', 'report'];
 
 const readRoute = (): Route => {
   const h = location.hash.replace(/^#\/?/, '').split('?')[0] as Route;
   return ROUTES.includes(h) ? h : 'home';
 };
 
-
-function Icon({ name }: { name: Route }) {
-  const p: Record<Route, ReactNode> = {
-    home: <path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />,
-    measure: <path d="M3 8h18v8H3zM7 8v3M11 8v4M15 8v3M19 8v4" />,
-    strength: <path d="M2 12h3M19 12h3M5 8v8M19 8v8M8 6v12M16 6v12M8 12h8" />,
-    food: <path d="M7 3v8a3 3 0 0 0 3 3v7M7 3v5M10 3v5M17 3c-2 2-2 6 0 8v10" />,
-    advice: <path d="M12 3a6 6 0 0 0-3 11v3h6v-3a6 6 0 0 0-3-11zM9 21h6" />,
-    settings: <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2" />,
-  };
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {p[name]}
-    </svg>
-  );
-}
-
-const LABELS: Record<Route, string> = { home: 'Главная', measure: 'Замеры', strength: 'Силовые', food: 'Питание', advice: 'Советы', settings: 'Настройки' };
+// Нижняя навигация: не больше пяти вкладок. «Советы» и «Настройки» живут внутри «Ещё».
+const TABS: Array<{ route: Route; icon: IconName; label: string; also?: Route[] }> = [
+  { route: 'home', icon: 'today', label: 'Сегодня' },
+  { route: 'measure', icon: 'body', label: 'Тело' },
+  { route: 'strength', icon: 'training', label: 'Тренировки', also: ['workout', 'program'] },
+  { route: 'food', icon: 'food', label: 'Питание' },
+  { route: 'more', icon: 'more', label: 'Ещё', also: ['advice', 'settings', 'stats', 'academy', 'report'] },
+];
 
 
 function Shell() {
@@ -73,7 +70,7 @@ function Shell() {
     const apply = () => {
       const t = settings.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : settings.theme;
       document.documentElement.dataset.theme = t;
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'light' ? '#f4f1ec' : '#121212');
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'light' ? '#f4f1ec' : '#000000');
     };
     apply();
     const mq = matchMedia('(prefers-color-scheme: light)');
@@ -87,20 +84,18 @@ function Shell() {
 
   return (
     <>
-      <header className="topbar">
-        <a href="#home" className="brand" style={{ color: 'inherit', textDecoration: 'none' }}>
-          <Logo />
-          КАНОН
-        </a>
-        {d.streak > 0 && (
-          <span className="badge badge-accent" title="Дней подряд с любой записью">
-            Серия: {d.streak} дн.
+      {/* Каждый экран рисует заголовок сам; общая шапка с названием нужна только мастеру первого запуска. */}
+      {ready && !settings.onboarded && (
+        <header className="topbar">
+          <span className="brand">
+            <Logo />
+            Канон
           </span>
-        )}
-      </header>
+        </header>
+      )}
 
       {needRefresh && (
-        <div className="banner banner-warn spread">
+        <div className="banner banner-warn spread no-print">
           <span>Доступна новая версия приложения.</span>
           <button className="btn btn-small btn-primary" onClick={() => updateServiceWorker(true)}>
             Обновить
@@ -108,7 +103,7 @@ function Shell() {
         </div>
       )}
       {showInstall && (
-        <div className="banner">
+        <div className="banner no-print">
           <b>Установите приложение на экран «Домой».</b>{' '}
           {isIOS()
             ? 'В Safari: кнопка «Поделиться» → «На экран „Домой“». Без установки iOS может удалить данные сайта, если вы долго им не пользуетесь.'
@@ -131,7 +126,7 @@ function Shell() {
         </div>
       )}
       {showBackup && route !== 'settings' && (
-        <div className="banner banner-warn spread">
+        <div className="banner banner-warn spread no-print">
           <span>{backupDays === null ? 'Бэкапа ещё не было.' : `Последний бэкап ${Math.floor(backupDays)} дн. назад.`} Сохраните файл — это единственная копия данных.</span>
           <a className="btn btn-small" href="#settings">
             Бэкап
@@ -141,7 +136,7 @@ function Shell() {
 
       <main>
         {!ready ? (
-          <div className="empty">Загрузка…</div>
+          <div className="skeleton" role="status" aria-label="Загрузка" />
         ) : !settings.onboarded ? (
           <Onboarding />
         ) : route === 'home' ? (
@@ -154,6 +149,18 @@ function Shell() {
           <Nutrition />
         ) : route === 'advice' ? (
           <AdvicePage />
+        ) : route === 'more' ? (
+          <More />
+        ) : route === 'workout' ? (
+          <Workout />
+        ) : route === 'program' ? (
+          <ProgramPage />
+        ) : route === 'stats' ? (
+          <StatsPage />
+        ) : route === 'academy' ? (
+          <AcademyPage />
+        ) : route === 'report' ? (
+          <ReportPage />
         ) : (
           <SettingsPage />
         )}
@@ -162,10 +169,10 @@ function Shell() {
       {settings.onboarded && (
       <footer className="tabbar">
         <nav aria-label="Разделы">
-          {ROUTES.map((r) => (
-            <a key={r} href={`#${r}`} aria-current={route === r ? 'page' : undefined}>
-              <Icon name={r} />
-              {LABELS[r]}
+          {TABS.map((t) => (
+            <a key={t.route} href={`#${t.route}`} aria-current={route === t.route || t.also?.includes(route) ? 'page' : undefined}>
+              <Icon name={t.icon} />
+              {t.label}
             </a>
           ))}
         </nav>

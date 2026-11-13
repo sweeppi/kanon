@@ -5,6 +5,8 @@ import { exportBackup, importBackup, canonical, validateBackup, BackupError, mea
 import { parseHevyWorkouts } from '../src/lib/hevy/hevy';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { generateProgram } from '../src/lib/program/generate';
+import { startWorkout } from '../src/lib/program/session';
 
 async function seed(db: KanonDB) {
   await db.measurements.bulkAdd([
@@ -19,7 +21,11 @@ async function seed(db: KanonDB) {
   for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 31) % 256;
   await db.photos.add({ date: '2025-02-08', angle: 'front', mime: 'image/jpeg', data: bytes.buffer });
   await db.exerciseOverrides.put({ title: 'Мой тренажёр', primary: ['back'], secondary: [] });
-  await saveSettings({ goalWeightKg: 72, healthFlags: { hyperlordosis: true } }, db);
+  // v2: программа тренировок и незаконченная тренировка тоже должны пережить бэкап
+  const program = generateProgram({ daysPerWeek: 3, gear: 'gym', goal: 'muscle', trainingYears: 2, minutes: 60, healthFlags: { hyperlordosis: true }, priority: ['shoulders'] }, '2025-02-08T10:00:00.000Z');
+  const id = await db.programs.add(program);
+  await db.kv.put({ key: 'activeWorkout', value: startWorkout({ title: program.days[0].name, day: program.days[0], programId: id, dayIndex: 0, history: sets, now: new Date(2025, 1, 9, 18, 0) }) });
+  await saveSettings({ goalWeightKg: 72, healthFlags: { hyperlordosis: true }, activeProgramId: id }, db);
 }
 
 describe('Круговой бэкап', () => {
@@ -41,6 +47,10 @@ describe('Круговой бэкап', () => {
     expect(arr.length).toBe(256 * 1024);
     expect(arr[1000]).toBe((1000 * 31) % 256);
     expect((await loadSettings(db)).goalWeightKg).toBe(72);
+    const prog = (await db.programs.toArray())[0];
+    expect(prog.days).toHaveLength(3);
+    expect((await loadSettings(db)).activeProgramId).toBe(prog.id);
+    expect(((await db.kv.get('activeWorkout'))!.value as { title: string }).title).toBe(prog.days[0].name);
     db.close();
   });
 
@@ -76,6 +86,20 @@ describe('Круговой бэкап', () => {
     expect(m).toContain('82,4');
     const w = workoutsCsv(await db.sets.toArray());
     expect(w.split('\r\n')).toHaveLength(13);
+    db.close();
+  });
+});
+
+describe('Бэкап версии 1 (до программ тренировок)', () => {
+  it('файл без таблицы programs восстанавливается, программ просто нет', async () => {
+    const db = new KanonDB('test-old-backup');
+    await seed(db);
+    const b = await exportBackup(db);
+    const old = { ...b, data: { ...b.data } } as Record<string, unknown> & { data: Record<string, unknown> };
+    delete old.data.programs;
+    const counts = await importBackup(validateBackup(old), db);
+    expect(counts.programs).toBe(0);
+    expect(await db.measurements.count()).toBe(2);
     db.close();
   });
 });

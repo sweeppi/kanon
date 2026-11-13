@@ -28,8 +28,19 @@ export function Onboarding() {
 
   return (
     <div>
-      <h1>Настроим под вас</h1>
-      <p className="muted tiny">Шаг {step + 1} из {steps.length}: {steps[step]}. Данные остаются только на этом устройстве.</p>
+      <header className="screen-head" style={{ paddingBottom: 0 }}>
+        <div>
+          <h1 className="display">Настроим под вас</h1>
+          <p>
+            Шаг {step + 1} из {steps.length}: {steps[step]}. Данные остаются только на этом устройстве.
+          </p>
+        </div>
+      </header>
+      <div className="steps" aria-hidden="true">
+        {steps.map((x, i) => (
+          <i key={x} className={i <= step ? 'on' : ''} />
+        ))}
+      </div>
 
       {step === 0 && (
         <Card>
@@ -42,8 +53,8 @@ export function Onboarding() {
               ['female', 'Женщина'],
             ]}
           />
-          <p className="tiny muted" style={{ marginTop: 6 }}>Нужен для формул (% жира, BMR, нормативы силы) и 3D-модели.</p>
-          <div className="grid2" style={{ marginTop: 8 }}>
+          <p className="caption" style={{ margin: '8px 0 0' }}>Нужен для формул (% жира, BMR, нормативы силы) и 3D-модели.</p>
+          <div className="grid2" style={{ marginTop: 16 }}>
             <NumField label="Возраст" unit="лет" min={14} max={90} step={1} value={s.age} onChange={(v) => v && set({ age: v })} />
             <NumField label="Рост" unit="см" min={120} max={230} value={s.heightCm} onChange={(v) => v && set({ heightCm: v })} />
             <NumField label="Вес сейчас" unit="кг" min={30} max={250} value={weight} onChange={setWeight} />
@@ -74,7 +85,7 @@ export function Onboarding() {
         </Card>
       )}
 
-      <div className="row" style={{ justifyContent: 'space-between' }}>
+      <div className="actions">
         <button className="btn" onClick={() => (step === 0 ? void setSettings({ onboarded: true }) : setStep(step - 1))}>
           {step === 0 ? 'Пропустить' : 'Назад'}
         </button>

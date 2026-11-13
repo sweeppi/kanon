@@ -25,8 +25,9 @@
 
 | Что | Лицензия |
 |---|---|
-| Шрифты | Системные (San Francisco на iPhone, Segoe UI на Windows) — в приложение не встраиваются |
-| Иконки приложения и интерфейса | Нарисованы для проекта (`scripts/make-icons.mjs`, SVG в коде) — MIT |
+| Шрифт заголовков Forum | Автор Денис Машаров. **SIL Open Font License 1.1**. Встроен в сборку через пакет `@fontsource/forum` (файлы `.woff2`), без обращения к внешним серверам |
+| Шрифт текста и чисел | Системный (San Francisco на iPhone, Segoe UI на Windows) — в приложение не встраивается |
+| Иконки приложения и интерфейса | Нарисованы для проекта (`scripts/make-icons.mjs`, `src/components/icons.tsx`) — MIT |
 
 ## Библиотеки (runtime)
 
@@ -37,8 +38,13 @@
 | @react-three/fiber, @react-three/drei | MIT |
 | dexie, dexie-react-hooks | Apache-2.0 |
 | workbox (через vite-plugin-pwa) | MIT |
+| zxing-wasm (распознавание штрихкодов; внутри — zxing-cpp) | MIT (zxing-cpp — Apache-2.0) |
+| @fontsource/forum (файлы шрифта) | OFL-1.1 |
 
 Инструменты сборки (vite, vitest, typescript, @gltf-transform/*, meshoptimizer, fake-indexeddb) — MIT / Apache-2.0, в приложение не попадают (кроме декодера meshopt внутри three — MIT).
+
+## Оформление и чужие приложения
+Интерфейс версии 2 сделан с оглядкой на уровень удобства коммерческих фитнес-приложений, но ничего из них не содержит: название, логотип, иконки, иллюстрации, тексты, программы тренировок и рецепты — свои. Скриншоты-референсы лежат в `design-ref/`, исключены из репозитория (`.gitignore`) и в сборку не попадают.
 
 ## Эвристики, использованные с указанием авторства
 

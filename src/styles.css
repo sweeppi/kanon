@@ -1,19 +1,44 @@
-/* «Канон» — спокойный интерфейс: графит и мрамор, бронзовый акцент, патина для «сильного», терракота для «отстающего». */
+/* «Канон» v2 — скульптура в тёмном зале: чёрный фон, мрамор, бронза. Токены описаны в design-system/kanon/MASTER.md. */
 :root {
-  --bg: #111214;
-  --surface: #1a1c1f;
-  --surface-2: #23262a;
-  --line: #2e3238;
-  --text: #ecebe8;
-  --muted: #9a9fa6;
+  --bg: #000000;
+  --surface: #141312;
+  --surface-2: #1f1d1b;
+  --surface-3: #2b2825;
+  --line: #2b2825;
+  --text: #f2efe9;
+  --muted: #a39e96;
   --accent: #c9965b;
   --accent-ink: #1a1408;
-  --good: #4fb38a;
+  --good: #5db796;
   --warn: #e3b04b;
   --bad: #e0705a;
   --focus: #e8c28f;
-  --radius: 14px;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --r-card: 22px;
+  --r-tile: 14px;
+  --r-ctl: 12px;
+  --r-pill: 999px;
+  --radius: var(--r-card);
   --tap: 44px;
+
+  --font-display: 'Forum', 'Times New Roman', serif;
+  --fs-display: 2.125rem;
+  --fs-figure: 2.5rem;
+  --fs-title: 1.25rem;
+  --fs-value: 1.5rem;
+  --fs-small: 0.875rem;
+  --fs-caption: 0.75rem;
+
+  --t-press: 80ms;
+  --t-move: 220ms;
+  --t-exit: 160ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   color-scheme: dark;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 16px;
@@ -24,15 +49,16 @@
   --bg: #f4f1ec;
   --surface: #ffffff;
   --surface-2: #efebe4;
+  --surface-3: #e3ddd3;
   --line: #ddd6cc;
   --text: #1d1d1f;
-  --muted: #6b6f75;
-  --accent: #9a6a33;
+  --muted: #66625c;
+  --accent: #8a5c28;
   --accent-ink: #fff8ee;
-  --good: #2f8a64;
-  --warn: #a8761a;
-  --bad: #b8492f;
-  --focus: #9a6a33;
+  --good: #25744f;
+  --warn: #8a5f0c;
+  --bad: #a53d20;
+  --focus: #8a5c28;
   color-scheme: light;
 }
 * {
@@ -99,9 +125,10 @@ small,
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 700;
-  font-size: 1.15rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.5rem;
+  min-height: var(--tap);
 }
 .brand svg {
   color: var(--accent);
@@ -109,10 +136,13 @@ small,
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 14px;
-  margin-bottom: 12px;
+  border-radius: var(--r-card);
+  padding: var(--s4);
+  margin-bottom: var(--s3);
+}
+.card h2 {
+  font-size: var(--fs-title);
+  margin: 0;
 }
 .card-head {
   display: flex;
@@ -149,43 +179,51 @@ small,
 
 .stat {
   background: var(--surface-2);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: var(--r-tile);
+  padding: var(--s3);
   min-width: 0;
 }
 .stat-label {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: var(--fs-caption);
 }
 .stat-value {
-  font-size: 1.25rem;
+  font-size: var(--fs-value);
+  line-height: 1.15;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
 .stat-sub {
-  font-size: 0.75rem;
+  font-size: var(--fs-caption);
   color: var(--muted);
 }
 
 .btn {
   appearance: none;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   background: var(--surface-2);
   color: var(--text);
-  border-radius: 12px;
-  min-height: var(--tap);
-  padding: 0 14px;
+  border-radius: var(--r-ctl);
+  min-height: 48px;
+  padding: 0 var(--s4);
   font: inherit;
   font-weight: 560;
+  text-decoration: none;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--s2);
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-press) linear, opacity var(--t-press) linear;
 }
 .btn:active {
-  transform: scale(0.98);
+  background: var(--surface-3);
+}
+.btn-primary:active {
+  background: var(--accent);
+  opacity: 0.8;
 }
 .btn-primary {
   background: var(--accent);
@@ -197,9 +235,9 @@ small,
   border-color: color-mix(in srgb, var(--bad) 50%, var(--line));
 }
 .btn-small {
-  min-height: 34px;
-  padding: 0 10px;
-  font-size: 0.85rem;
+  min-height: var(--tap);
+  padding: 0 var(--s3);
+  font-size: var(--fs-small);
 }
 .btn-block {
   width: 100%;
@@ -226,10 +264,10 @@ select,
 textarea {
   width: 100%;
   min-height: var(--tap);
-  background: var(--bg);
+  background: var(--surface-2);
   color: var(--text);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-tile);
   padding: 8px 10px;
   font: inherit;
   font-size: 16px; /* иначе iOS зумит поле */
@@ -268,21 +306,22 @@ input[type='range'] {
 }
 .seg button {
   flex: 1 0 auto;
-  min-height: 36px;
+  min-height: var(--tap);
   border: 0;
   border-radius: 9px;
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 0.88rem;
-  padding: 0 10px;
+  font-size: var(--fs-small);
+  padding: 0 var(--s3);
   cursor: pointer;
   white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-press) linear, color var(--t-press) linear;
 }
 .seg button[aria-pressed='true'] {
-  background: var(--surface);
+  background: var(--surface-3);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .tabbar {
@@ -291,9 +330,9 @@ input[type='range'] {
   right: 0;
   bottom: 0;
   z-index: 20;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -301,34 +340,36 @@ input[type='range'] {
   max-width: 760px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
 }
 .tabbar a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   min-height: 56px;
   justify-content: center;
   text-decoration: none;
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-press) linear, opacity var(--t-press) linear;
+}
+.tabbar a:active {
+  opacity: 0.6;
 }
 .tabbar a[aria-current='page'] {
   color: var(--accent);
-}
-.tabbar svg {
-  width: 22px;
-  height: 22px;
+  font-weight: 600;
 }
 
 .banner {
-  border-radius: 12px;
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  border: 1px solid var(--line);
+  border-radius: var(--r-tile);
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s3);
+  border: 1px solid transparent;
   background: var(--surface-2);
-  font-size: 0.9rem;
+  font-size: var(--fs-small);
 }
 .banner-warn {
   border-color: color-mix(in srgb, var(--warn) 60%, var(--line));
@@ -403,15 +444,19 @@ table.tbl {
 
 .body3d {
   position: relative;
-  border-radius: var(--radius);
-  background: radial-gradient(ellipse at 50% 40%, var(--surface-2), var(--surface) 70%);
+  /* свет «из-под потолка зала»: мягкое пятно за фигурой, к краям — в фон страницы */
+  background: radial-gradient(ellipse 70% 55% at 50% 42%, var(--surface-2), transparent 72%);
   touch-action: none;
   overflow: hidden;
 }
 .body3d-reset {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  right: 0;
+  bottom: var(--s2);
+  width: var(--tap);
+  padding: 0;
+  border-radius: var(--r-pill);
+  color: var(--muted);
 }
 .body-poster {
   display: flex;
@@ -533,15 +578,15 @@ table.tbl {
   max-width: 760px;
   max-height: 88dvh;
   overflow-y: auto;
-  border-radius: 18px 18px 0 0;
+  border-radius: var(--r-card) var(--r-card) 0 0;
   padding: 16px max(16px, env(safe-area-inset-left)) calc(16px + env(safe-area-inset-bottom));
-  border: 1px solid var(--line);
 }
 .toast {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(76px + env(safe-area-inset-bottom));
+  /* сверху: внизу сообщение закрывало бы навигацию и таймер отдыха */
+  top: calc(12px + env(safe-area-inset-top));
   background: var(--text);
   color: var(--bg);
   padding: 10px 16px;
@@ -567,6 +612,744 @@ details > summary {
   padding: 18px 8px;
   color: var(--muted);
 }
+/* ───── v2: новые блоки (экран «Сегодня», «Ещё») ───── */
+.icon {
+  flex: none;
+  display: block;
+}
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--fs-display);
+  line-height: 1.1;
+  letter-spacing: 0;
+  margin: 0;
+}
+.screen-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--s3);
+  padding: var(--s3) 0 var(--s4);
+}
+.screen-head p {
+  margin: var(--s1) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  min-height: 32px;
+  padding: 0 var(--s3);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.section-gap {
+  margin-top: var(--s5);
+}
+
+/* Скульптура: модель стоит прямо на фоне страницы, без карточки */
+.statue {
+  position: relative;
+  margin-bottom: var(--s3);
+}
+.statue-level {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+  max-width: 60%;
+}
+.statue-level b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.75rem;
+  line-height: 1.1;
+  color: var(--accent);
+}
+.statue-level small {
+  font-size: var(--fs-small);
+}
+.statue-note {
+  position: absolute;
+  top: var(--s1);
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+
+/* Лента: деления мерной ленты вместо колец */
+.tape-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+.tape-label {
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+.tape-caption {
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.tape-scale {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 20px;
+}
+.tape-scale i {
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--line);
+  transition: background-color var(--t-move) var(--ease);
+}
+.tape-scale i.major {
+  height: 20px;
+}
+.tape-scale i.on {
+  background: var(--accent);
+}
+.tape-scale.tape-over i.on {
+  background: var(--warn);
+}
+.tape + .tape {
+  margin-top: var(--s4);
+}
+
+/* Главное число блока */
+.figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: var(--s1) 0 var(--s4);
+}
+.figure b {
+  font-size: var(--fs-figure);
+  line-height: 1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.figure span {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+/* Карточка-ссылка: нажимается целиком */
+a.card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-press) linear;
+}
+a.card:active {
+  background: var(--surface-2);
+}
+.card-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+/* Сворачиваемая карточка: справочные таблицы и методики */
+details.card {
+  padding: 0;
+}
+details.card > summary {
+  list-style: none;
+  min-height: 56px;
+  padding: 0 var(--s4);
+  justify-content: space-between;
+  gap: var(--s3);
+  color: var(--text);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+details.card > summary::-webkit-details-marker {
+  display: none;
+}
+details.card > summary .icon {
+  color: var(--muted);
+  transition: transform var(--t-move) var(--ease);
+}
+details.card[open] > summary .icon {
+  transform: rotate(90deg);
+}
+.fold-body {
+  padding: 0 var(--s4) var(--s4);
+}
+
+/* Строки-ссылки («Ещё», позже — настройки) */
+.card.rows {
+  padding: 0 var(--s4);
+}
+.rowlink {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 68px;
+  padding: var(--s3) 0;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--t-press) linear;
+}
+.rowlink:last-child {
+  border-bottom: 0;
+}
+.rowlink:active {
+  opacity: 0.6;
+}
+.rowlink > .icon {
+  color: var(--muted);
+}
+.rowlink-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+  color: var(--accent);
+  flex: none;
+}
+.rowlink-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rowlink-text small {
+  font-size: var(--fs-small);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  font-size: var(--fs-small);
+}
+.reqs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.reqs li {
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line);
+}
+.reqs small {
+  display: block;
+  font-size: var(--fs-small);
+}
+/* ───── v2, этап 2: общие элементы всех экранов ───── */
+.iconbtn {
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-press) linear, opacity var(--t-press) linear;
+}
+.iconbtn:active {
+  background: var(--surface-3);
+}
+.iconbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.iconbtn-danger {
+  color: var(--bad);
+}
+.iconbtn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.iconbtn-primary:active {
+  background: var(--accent);
+  opacity: 0.8;
+}
+
+/* Подразделы экрана: сегменты сразу под заголовком */
+.subnav {
+  margin-bottom: var(--s4);
+}
+
+/* Заголовок группы полей и раздела — обычным регистром */
+.group-title,
+.card .group-title {
+  margin: var(--s5) 0 var(--s3);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+/* Поле замера: под полем — режим («Напрячь» / «Не напрягать») и раскрытие «как мерить» */
+.hintbtn {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s1);
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-caption);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.hintbtn:active {
+  opacity: 0.6;
+}
+.hintbtn.is-accent {
+  color: var(--accent);
+}
+.hint-text {
+  font-size: var(--fs-small);
+  color: var(--muted);
+  overflow: hidden;
+  margin-bottom: var(--s2);
+}
+
+/* Строка списка с действиями справа */
+.entry {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.entry:last-child {
+  border-bottom: 0;
+}
+.entry-main {
+  flex: 1;
+  min-width: 0;
+}
+.entry-main b {
+  display: block;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.entry-main small {
+  display: block;
+  font-size: var(--fs-small);
+}
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Переключатель дня: назад, дата, вперёд */
+.daynav {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s4);
+}
+.daynav input {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+/* Выбор из набора (мышцы упражнения): кнопки-чипы */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.chips button {
+  appearance: none;
+  min-height: var(--tap);
+  padding: 0 var(--s3);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-small);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-press) linear;
+}
+.chips button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.note {
+  display: flex;
+  gap: var(--s2);
+  align-items: flex-start;
+  font-size: var(--fs-small);
+}
+.note .icon {
+  margin-top: 1px;
+}
+.note-warn {
+  color: var(--warn);
+}
+.note-good {
+  color: var(--good);
+}
+.caption {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.sources {
+  margin-top: var(--s3);
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+.sources > div + div {
+  margin-top: var(--s2);
+}
+.sources > summary {
+  min-height: var(--tap);
+  color: var(--accent);
+}
+.sources a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--s1);
+}
+.steps {
+  display: flex;
+  gap: var(--s1);
+  margin: var(--s2) 0 var(--s4);
+}
+.steps i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.steps i.on {
+  background: var(--accent);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s4);
+}
+.actions .btn {
+  flex: 1 1 auto;
+}
+
+.pattern + .pattern {
+  margin-top: var(--s4);
+}
+.pattern small {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--fs-small);
+}
+/* Загрузка: место под первый экран, а не слово «Загрузка…» */
+.skeleton {
+  height: 60dvh;
+  margin-top: var(--s6);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.empty p {
+  margin: 0 0 var(--s4);
+}
+.kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--tap);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-small);
+}
+.kv:last-of-type {
+  border-bottom: 0;
+}
+.kv > span:first-child {
+  color: var(--muted);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+.sheet {
+  animation: sheet-in var(--t-move) var(--ease);
+}
+
+/* ───── v2, этап 3: тренировка сейчас ───── */
+.setrow {
+  display: grid;
+  grid-template-columns: 28px 1fr 1fr var(--tap);
+  gap: var(--s2);
+  align-items: center;
+  margin-bottom: var(--s2);
+}
+.setrow-head {
+  margin-bottom: var(--s1);
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.setrow-n {
+  text-align: center;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.setrow input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.setrow.is-done input {
+  color: var(--muted);
+  border-color: transparent;
+}
+/* Таймер отдыха: закреплён над нижней навигацией, чтобы был виден при прокрутке */
+.restbar {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  z-index: 30;
+  max-width: 736px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: var(--surface-3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.restbar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  transition: width 250ms linear;
+}
+.restbar-over {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.restbar-over .restbar-fill {
+  display: none;
+}
+.restbar-over .caption {
+  color: inherit;
+}
+.restbar-row {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+}
+.restbar-clock {
+  display: block;
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.has-restbar {
+  padding-bottom: 96px;
+}
+.fold-body .caption a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--s1);
+}
+/* Строка-кнопка в списках выбора */
+.rowbtn {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: var(--s3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.rowbtn:active {
+  opacity: 0.6;
+}
+.chips button:disabled {
+  opacity: 0.4;
+}
+
+/* ───── v2, этап 4: сканер штрихкода ───── */
+.camera.scanner {
+  aspect-ratio: 4 / 3;
+}
+.scanner-frame {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 30%;
+  bottom: 30%;
+  border: 2px solid var(--accent);
+  border-radius: var(--r-tile);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+/* ───── v2, этап 5: статистика ───── */
+.statrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line);
+}
+.card-head + .statrow,
+.card > .statrow:first-child {
+  border-top: 0;
+}
+.statrow span {
+  display: block;
+}
+.statrow small {
+  display: block;
+  font-size: var(--fs-caption);
+}
+.statrow b {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.steps-list {
+  margin: 0 0 var(--s3);
+  padding-left: 1.25rem;
+  font-size: var(--fs-small);
+}
+.steps-list li + li {
+  margin-top: var(--s2);
+}
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+/* ───── v2, этап 6: академия и печать отчёта ───── */
+.claim {
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line);
+}
+.claim:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.report-sheet .tbl td:first-child {
+  width: 42%;
+  color: var(--muted);
+  vertical-align: top;
+}
+.report-sheet .tbl td:last-child {
+  text-align: left;
+}
+
+/* Печать: белый лист, чёрный текст, без навигации и кнопок. PDF получается через «Сохранить в PDF» в окне печати. */
+@media print {
+  :root,
+  :root[data-theme='light'],
+  :root[data-theme='dark'] {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #ffffff;
+    --surface-3: #ffffff;
+    --line: #c8c8c8;
+    --text: #000000;
+    --muted: #444444;
+    --accent: #000000;
+    color-scheme: light;
+  }
+  @page {
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: #fff;
+  }
+  #root {
+    max-width: none;
+    padding: 0;
+  }
+  .tabbar,
+  .toast,
+  .no-print,
+  .sheet-backdrop,
+  .restbar {
+    display: none !important;
+  }
+  .card {
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+  }
+  .report-sheet h3 {
+    break-after: avoid;
+  }
+  .report-sheet table,
+  .report-sheet p {
+    break-inside: avoid;
+  }
+  body {
+    font-size: 11pt;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

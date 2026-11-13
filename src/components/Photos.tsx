@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getDb, type Photo, type PhotoAngle } from '../lib/data/db';
-import { Card, Seg, fmtDate, useToast, Empty, pickFile } from './ui';
+import { Card, Seg, fmtDate, useToast, pickFile } from './ui';
 import { today } from '../lib/derive';
 
 const ANGLE_RU: Record<PhotoAngle, string> = { front: 'Спереди', side: 'Сбоку', back: 'Сзади' };
@@ -107,13 +107,14 @@ export function Photos() {
   };
 
   return (
-    <Card title="Фото прогресса" extra={<span className="badge">только на устройстве</span>}>
+    <Card title="Фото прогресса" extra={<span className="caption">хранятся только на устройстве</span>}>
+      <div style={{ height: 12 }} />
       <Seg<PhotoAngle> value={angle} onChange={setAngle} label="Ракурс" options={(Object.keys(ANGLE_RU) as PhotoAngle[]).map((a) => [a, ANGLE_RU[a]])} />
       <div style={{ marginTop: 10 }}>
         {camera ? (
           <Camera ghost={urlLast} onShot={store} onClose={() => setCamera(false)} />
         ) : (
-          <div className="row">
+          <div className="actions" style={{ marginTop: 0 }}>
             <button className="btn btn-primary" onClick={() => setCamera(true)}>
               Камера с контуром
             </button>
@@ -124,7 +125,7 @@ export function Photos() {
         )}
       </div>
       {photos.length === 0 ? (
-        <Empty>Фото «{ANGLE_RU[angle].toLowerCase()}» ещё нет.</Empty>
+        <p className="muted" style={{ margin: '16px 0 0' }}>Фото «{ANGLE_RU[angle].toLowerCase()}» пока нет — снимите первое, чтобы потом сравнивать.</p>
       ) : photos.length === 1 ? (
         <p className="tiny muted" style={{ marginTop: 8 }}>Одно фото от {fmtDate(photos[0].date)}. Для сравнения нужно второе.</p>
       ) : (

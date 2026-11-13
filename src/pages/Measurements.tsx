@@ -1,8 +1,10 @@
+// Экран «Тело»: четыре подраздела вместо одной длинной страницы — новый замер, динамика, фото, история.
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
 import { getDb, MEASURE_FIELDS, type Measurement, type MeasureField } from '../lib/data/db';
 import { FIELDS, FIELD_BY_KEY, FIELD_GROUPS, MODE_RU, STANDARD_RULE, type FieldMeta } from '../lib/measureMeta';
-import { Card, NumField, fmt, fmtDate, useToast, Empty, Sheet, pickFile } from '../components/ui';
+import { Card, NumField, Seg, Fold, ScreenHead, IconButton, fmt, fmtDate, useToast, Sheet, pickFile } from '../components/ui';
+import { Icon } from '../components/icons';
 import { LineChart } from '../components/Chart';
 import { ema } from '../lib/calc/trend';
 import { today } from '../lib/derive';
@@ -31,10 +33,12 @@ function MeasureFigure({ fig }: { fig: NonNullable<FieldMeta['fig']> }) {
 }
 
 type Draft = { date: string } & Partial<Record<MeasureField, number>> & { note?: string };
+type Tab = 'entry' | 'trend' | 'photos' | 'history';
 
 export function Measurements() {
   const { ms, d } = useStore();
   const toast = useToast();
+  const [tab, setTab] = useState<Tab>('entry');
   const [draft, setDraft] = useState<Draft>(() => {
     try {
       const s = localStorage.getItem(DRAFT_KEY);
@@ -131,202 +135,238 @@ export function Measurements() {
 
   return (
     <div>
-      <h1>Замеры</h1>
-      <div className="banner tiny">
-        <b>Правило стандартизации.</b> {STANDARD_RULE}
+      <ScreenHead
+        title="Тело"
+        action={
+          <button className="btn btn-small" onClick={startImport}>
+            Импорт CSV
+          </button>
+        }
+      />
+      <div className="subnav">
+        <Seg<Tab>
+          value={tab}
+          onChange={setTab}
+          label="Раздел"
+          options={[
+            ['entry', 'Замер'],
+            ['trend', 'Динамика'],
+            ['photos', 'Фото'],
+            ['history', 'История'],
+          ]}
+        />
       </div>
 
-      <Card title="Новый замер" extra={<button className="btn btn-small" onClick={startImport}>Импорт CSV</button>}>
-        <label className="field" style={{ marginBottom: 10 }}>
-          <span className="field-label">Дата</span>
-          <input type="date" value={draft.date} max={today()} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
-        </label>
-        {FIELD_GROUPS.map((g) => (
-          <div key={g.title} style={{ marginBottom: 12 }}>
-            <h3 className="tiny" style={{ color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '6px 0' }}>
-              {g.title}
-            </h3>
-            <div className="grid2">
-              {g.keys.map((key) => {
-                const f = FIELD_BY_KEY[key];
-                const mode = MODE_RU[f.mode];
-                return (
-                  <div key={f.key}>
-                    <NumField
-                      label={
-                        <span>
-                          {f.label}{' '}
-                          <button
-                            type="button"
-                            className="badge"
-                            style={{ cursor: 'pointer' }}
-                            aria-label={`Как мерить: ${f.label}`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setOpenHint(openHint === f.key ? null : f.key);
-                            }}
-                          >
-                            ?
-                          </button>
-                        </span>
-                      }
-                      ariaLabel={`${f.label}, ${f.unit}`}
-                      unit={f.unit}
-                      min={f.min}
-                      max={f.max}
-                      value={draft[f.key]}
-                      placeholder={d.values[f.key] !== undefined ? `было ${String(d.values[f.key]).replace('.', ',')}` : ''}
-                      onChange={(v) => setDraft({ ...draft, [f.key]: v })}
-                    />
-                    {f.mode !== 'scale' && (
-                      <span className={`badge badge-${mode.tone === 'accent' ? 'accent' : mode.tone === 'good' ? 'good' : ''}`} style={{ marginTop: 4 }}>
-                        {mode.icon} {mode.label}
-                      </span>
-                    )}
-                    {openHint === f.key && (
-                      <div className="tiny" style={{ marginTop: 4, overflow: 'hidden' }}>
-                        {f.fig && <MeasureFigure fig={f.fig} />}
-                        {f.hint}
+      {tab === 'entry' && (
+        <>
+          <Fold title="Как мерить правильно">
+            <p className="tiny muted" style={{ margin: 0 }}>
+              {STANDARD_RULE}
+            </p>
+          </Fold>
+          <Card>
+            <label className="field">
+              <span className="field-label">Дата</span>
+              <input type="date" value={draft.date} max={today()} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
+            </label>
+            {FIELD_GROUPS.map((g) => (
+              <section key={g.title}>
+                <h2 className="group-title">{g.title}</h2>
+                <div className="grid2">
+                  {g.keys.map((key) => {
+                    const f = FIELD_BY_KEY[key];
+                    const mode = MODE_RU[f.mode];
+                    const open = openHint === f.key;
+                    return (
+                      <div key={f.key}>
+                        <NumField
+                          label={f.label}
+                          ariaLabel={`${f.label}, ${f.unit}`}
+                          unit={f.unit}
+                          min={f.min}
+                          max={f.max}
+                          value={draft[f.key]}
+                          placeholder={d.values[f.key] !== undefined ? `было ${String(d.values[f.key]).replace('.', ',')}` : ''}
+                          onChange={(v) => setDraft({ ...draft, [f.key]: v })}
+                        />
+                        <button type="button" className={`hintbtn${mode.tone === 'accent' ? ' is-accent' : ''}`} aria-expanded={open} aria-label={`${f.label}: ${mode.label.toLowerCase()}. Как мерить`} onClick={() => setOpenHint(open ? null : f.key)}>
+                          <span>{f.mode === 'scale' ? 'Как мерить' : mode.label}</span>
+                          <Icon name="help" size={18} />
+                        </button>
+                        {open && (
+                          <div className="hint-text">
+                            {f.fig && <MeasureFigure fig={f.fig} />}
+                            {f.hint}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+            <label className="field" style={{ marginTop: 16 }}>
+              <span className="field-label">Заметка</span>
+              <input value={draft.note ?? ''} onChange={(e) => setDraft({ ...draft, note: e.target.value || undefined })} placeholder="например: после отпуска" />
+            </label>
+            <div className="actions">
+              <button className="btn btn-primary" onClick={save}>
+                Сохранить{filled.length > 0 ? ` (${filled.length})` : ''}
+              </button>
+              {filled.length > 0 && (
+                <button className="btn" onClick={() => setDraft({ date: draft.date })}>
+                  Очистить
+                </button>
+              )}
             </div>
-          </div>
-        ))}
-        <label className="field" style={{ marginTop: 10 }}>
-          <span className="field-label">Заметка</span>
-          <input value={draft.note ?? ''} onChange={(e) => setDraft({ ...draft, note: e.target.value || undefined })} placeholder="например: после отпуска" />
-        </label>
-        <div className="row" style={{ marginTop: 12 }}>
-          <button className="btn btn-primary" onClick={save}>
-            Сохранить ({filled.length})
-          </button>
-          {filled.length > 0 && (
-            <button className="btn" onClick={() => setDraft({ date: draft.date })}>
-              Очистить форму
-            </button>
-          )}
-        </div>
-        <p className="tiny muted" style={{ marginTop: 6 }}>Можно вносить не все поля: для расчётов берётся последнее известное значение каждого.</p>
-      </Card>
-
-      <Card title="График">
-        <select value={chartField} onChange={(e) => setChartField(e.target.value as MeasureField)} aria-label="Показатель для графика">
-          {FIELDS.map((f) => (
-            <option key={f.key} value={f.key}>
-              {f.label}
-            </option>
-          ))}
-        </select>
-        <div style={{ marginTop: 8 }}>
-          <LineChart
-            unit={FIELD_BY_KEY[chartField].unit}
-            series={
-              chartField === 'weight'
-                ? [
-                    { label: 'Тренд EMA', points: ema(series), color: 'var(--accent)' },
-                    { label: 'Факт', points: series, color: 'var(--muted)', dashed: true, dots: true },
-                  ]
-                : [{ label: FIELD_BY_KEY[chartField].label, points: series, color: 'var(--accent)', dots: true }]
-            }
-          />
-        </div>
-      </Card>
-
-      {sorted.length >= 2 && (
-        <Card title="Сравнение двух дат">
-          <div className="grid2">
-            <select value={A?.date} onChange={(e) => setCmpA(e.target.value)} aria-label="Дата A">
-              {dates.map((x) => (
-                <option key={x} value={x}>
-                  {fmtDate(x)}
-                </option>
-              ))}
-            </select>
-            <select value={B?.date} onChange={(e) => setCmpB(e.target.value)} aria-label="Дата B">
-              {dates.map((x) => (
-                <option key={x} value={x}>
-                  {fmtDate(x)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <table className="tbl" style={{ marginTop: 8 }}>
-            <thead>
-              <tr>
-                <th>Поле</th>
-                <th>A</th>
-                <th>B</th>
-                <th>Δ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {FIELDS.filter((f) => A?.[f.key] !== undefined || B?.[f.key] !== undefined).map((f) => {
-                const a = A?.[f.key];
-                const b = B?.[f.key];
-                const diff = a !== undefined && b !== undefined ? b - a : null;
-                return (
-                  <tr key={f.key}>
-                    <td>{f.label}</td>
-                    <td>{fmt(a, 1)}</td>
-                    <td>{fmt(b, 1)}</td>
-                    <td>{diff == null ? '—' : `${diff > 0 ? '+' : ''}${fmt(diff, 1)}`}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
+            <p className="caption" style={{ margin: '12px 0 0' }}>
+              Можно вносить не все поля: для расчётов берётся последнее известное значение каждого.
+            </p>
+          </Card>
+        </>
       )}
 
-      <Photos />
+      {tab === 'trend' && (
+        <>
+          <Card title="График">
+            <select value={chartField} onChange={(e) => setChartField(e.target.value as MeasureField)} aria-label="Показатель для графика" style={{ marginTop: 12 }}>
+              {FIELDS.map((f) => (
+                <option key={f.key} value={f.key}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            <div style={{ marginTop: 12 }}>
+              <LineChart
+                unit={FIELD_BY_KEY[chartField].unit}
+                series={
+                  chartField === 'weight'
+                    ? [
+                        { label: 'Тренд EMA', points: ema(series), color: 'var(--accent)' },
+                        { label: 'Факт', points: series, color: 'var(--muted)', dashed: true, dots: true },
+                      ]
+                    : [{ label: FIELD_BY_KEY[chartField].label, points: series, color: 'var(--accent)', dots: true }]
+                }
+              />
+            </div>
+          </Card>
 
-      <Card title="История">
-        {sorted.length === 0 ? (
-          <Empty>Пока нет замеров. Начните с веса, шеи и талии — этого хватит для % жира.</Empty>
-        ) : (
-          <ul className="list">
-            {sorted.map((m) => (
-              <li key={m.id} className="spread">
-                <div>
-                  <b>{fmtDate(m.date)}</b>
-                  <div className="tiny muted">
-                    {FIELDS.filter((f) => m[f.key] !== undefined)
-                      .map((f) => `${f.label.toLowerCase()} ${String(m[f.key]).replace('.', ',')}`)
-                      .join(' · ')}
-                    {m.note ? ` · «${m.note}»` : ''}
+          {sorted.length >= 2 ? (
+            <Card title="Сравнение двух дат">
+              <div className="grid2" style={{ marginTop: 12 }}>
+                <label className="field">
+                  <span className="field-label">Было</span>
+                  <select value={A?.date} onChange={(e) => setCmpA(e.target.value)}>
+                    {dates.map((x) => (
+                      <option key={x} value={x}>
+                        {fmtDate(x)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">Стало</span>
+                  <select value={B?.date} onChange={(e) => setCmpB(e.target.value)}>
+                    {dates.map((x) => (
+                      <option key={x} value={x}>
+                        {fmtDate(x)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <table className="tbl" style={{ marginTop: 12 }}>
+                <thead>
+                  <tr>
+                    <th>Поле</th>
+                    <th>Было</th>
+                    <th>Стало</th>
+                    <th>Разница</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {FIELDS.filter((f) => A?.[f.key] !== undefined || B?.[f.key] !== undefined).map((f) => {
+                    const a = A?.[f.key];
+                    const b = B?.[f.key];
+                    const diff = a !== undefined && b !== undefined ? b - a : null;
+                    return (
+                      <tr key={f.key}>
+                        <td>{f.label}</td>
+                        <td>{fmt(a, 1)}</td>
+                        <td>{fmt(b, 1)}</td>
+                        <td>{diff == null ? '—' : `${diff > 0 ? '+' : ''}${fmt(diff, 1)}`}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
+          ) : (
+            <Card>
+              <p className="muted" style={{ margin: 0 }}>
+                Сравнение двух дат появится после второго замера.
+              </p>
+            </Card>
+          )}
+        </>
+      )}
+
+      {tab === 'photos' && <Photos />}
+
+      {tab === 'history' && (
+        <Card>
+          {sorted.length === 0 ? (
+            <div className="empty">
+              <p>Замеров пока нет. Начните с веса, шеи и талии — этого хватит для % жира.</p>
+              <button className="btn btn-primary" onClick={() => setTab('entry')}>
+                Внести замер
+              </button>
+            </div>
+          ) : (
+            <ul className="entries">
+              {sorted.map((m) => (
+                <li key={m.id} className="entry">
+                  <div className="entry-main">
+                    <b>{fmtDate(m.date)}</b>
+                    <small className="muted">
+                      {FIELDS.filter((f) => m[f.key] !== undefined)
+                        .map((f) => `${f.label.toLowerCase()} ${String(m[f.key]).replace('.', ',')}`)
+                        .join(', ')}
+                      {m.note ? ` — «${m.note}»` : ''}
+                    </small>
                   </div>
-                </div>
-                <div className="row">
-                  <button className="btn btn-small" onClick={() => setDraft({ ...(m as Draft), date: m.date })} aria-label="Редактировать">
-                    ✎
-                  </button>
-                  <button
-                    className="btn btn-small btn-danger"
-                    aria-label="Удалить"
+                  <IconButton
+                    icon="edit"
+                    label={`Редактировать замер за ${fmtDate(m.date)}`}
+                    onClick={() => {
+                      setDraft({ ...(m as Draft), date: m.date });
+                      setTab('entry');
+                      window.scrollTo(0, 0);
+                    }}
+                  />
+                  <IconButton
+                    icon="trash"
+                    tone="danger"
+                    label={`Удалить замер за ${fmtDate(m.date)}`}
                     onClick={async () => {
                       if (confirm(`Удалить замер за ${fmtDate(m.date)}? Это необратимо.`)) {
                         await getDb().measurements.delete(m.id!);
                         toast('Замер удалён');
                       }
                     }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       <Sheet open={!!imp} onClose={() => setImp(null)} title="Импорт замеров">
         {imp && parsedImport && (
           <div className="stack">
             <p className="tiny">
-              Файл: <b>{imp.name}</b> · строк: {imp.table.rows.length}. Подходит экспорт Hevy, Strong, умных весов (Zepp, Mi Fit и др.) или своя таблица. Фунты и дюймы пересчитываются, если это видно из заголовка.
+              Файл <b>{imp.name}</b>, строк: {imp.table.rows.length}. Подходит экспорт Hevy, Strong, умных весов (Zepp, Mi Fit и др.) или своя таблица. Фунты и дюймы пересчитываются, если это видно из заголовка.
             </p>
             <details open={!!parsedImport.error}>
               <summary>Сопоставление колонок</summary>
