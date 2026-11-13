@@ -139,3 +139,34 @@ describe.skipIf(!existsSync(GLB))('Калибровка реальной мод�
     expect(cal.outOfTolerance).toContain('biceps');
   });
 });
+
+describe('Кольцо замера на модели', () => {
+  it('кольцо — та же лента, что и обхват: периметр совпадает с измерением', async () => {
+    const { sliceRing, measureSlice } = await import('../src/lib/model/calibrate');
+    const { pos, tris } = cylinder(0.15, 1, 64, 10);
+    const lm: Landmarks = {
+      version: 1,
+      morphNames: [],
+      segNames: ['torso'],
+      top: pos.length / 3 - 1,
+      bottom: 0,
+      points: { a: { base: [0, 0, 0], d: {} }, b: { base: [0, 1, 0], d: {} }, 'l-shoulder': { base: [0.2, 1, 0], d: {} } },
+      slices: [{ key: 'waist', a: 'a', b: 'b', t: 0.55, normal: 'up', radius: 1, segs: [0] }],
+    };
+    const rig = buildRig(pos, [], tris, new Float32Array(pos.length / 3), lm);
+    const ring = sliceRing(rig, 'waist', new Float32Array(0));
+    expect(ring.length).toBeGreaterThan(30);
+    for (const p of ring) {
+      expect(p[1]).toBeCloseTo(0.55, 6); // лежит в плоскости сечения
+      expect(Math.hypot(p[0], p[2])).toBeCloseTo(0.15, 2);
+    }
+    let per = 0;
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i];
+      const b = ring[(i + 1) % ring.length];
+      per += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    }
+    expect(per * 100).toBeCloseTo(measureSlice(rig, 'waist', new Float32Array(0)), 6);
+    expect(sliceRing(rig, 'chest', new Float32Array(0))).toEqual([]);
+  });
+});

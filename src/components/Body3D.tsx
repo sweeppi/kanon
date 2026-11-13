@@ -1,21 +1,24 @@
 // 3D-модель тела: MakeHuman (CC0) + морфы, откалиброванные под замеры. Грузится лениво (отдельный чанк three.js).
 import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, useGLTF } from '@react-three/drei';
-import { BufferAttribute, Color, DoubleSide, Mesh, MeshStandardMaterial, type Object3D } from 'three';
+import { ContactShadows, Html, Line, OrbitControls, useGLTF } from '@react-three/drei';
+import { BufferAttribute, CatmullRomCurve3, Color, DoubleSide, Mesh, MeshStandardMaterial, PMREMGenerator, Vector3, type Object3D } from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import landmarksJson from '../lib/model/landmarks.json';
-import type { Landmarks, ZoneName } from '../lib/model/schema';
+import type { Landmarks, SliceKey, ZoneName } from '../lib/model/schema';
 import { ZONES } from '../lib/model/schema';
-import { calibrate, vertexGetter, type Calibration, type Params, type Targets, type Rig } from '../lib/model/calibrate';
+import { calibrate, sliceRing, vertexGetter, type Calibration, type Params, type Targets, type Rig } from '../lib/model/calibrate';
 import { rigFromMesh } from '../lib/model/browserRig';
 import { Icon } from './icons';
 
 const lm = landmarksJson as unknown as Landmarks;
 const MODEL_URL = `${import.meta.env.BASE_URL}models/body.glb`;
-// Начальный ракурс: камера чуть выше пояса, центр вращения на уровне ~0,95 м (середина фигуры)
-const CAM_POS: [number, number, number] = [0, 1.05, 3.7]; // 3,7 м: фигура 1,9 м помещается целиком со ступнями
-const CAM_TARGET: [number, number, number] = [0, 0.95, 0];
+// Начальный ракурс: руки опущены, фигура узкая — камера ближе и чуть выше пояса,
+// центр вращения на середине фигуры. При fov 30° на 3,75 м в кадр входит ≈ 2 м высоты.
+const CAM_POS: [number, number, number] = [0, 1.0, 3.75];
+const CAM_TARGET: [number, number, number] = [0, 0.92, 0];
+const CAM_FOV = 30;
 
 export interface BodySpec {
   targets: Targets;
@@ -28,6 +31,16 @@ export interface Body3DProps {
   zoneStatus?: Partial<Record<ZoneName, number>>;
   onCalibrated?: (main: Calibration, ghost: Calibration | null) => void;
   height?: number;
+  /** кольца замеров на модели: та же «лента», что считает обхват, и подпись со значением */
+  rings?: RingSpec[];
+}
+
+export interface RingSpec {
+  key: SliceKey;
+  label: string;
+  /** с какой стороны вынести подпись: 1 — справа на экране, -1 — слева */
+  side: 1 | -1;
+  onClick?: () => void;
 }
 
 export function webglAvailable(): boolean {
@@ -66,7 +79,7 @@ function useCalibration(rig: Rig | null, spec: BodySpec | null | undefined): Cal
   return cal;
 }
 
-function BodyModel({ primary, ghost, heat, zoneStatus, onCalibrated }: Body3DProps) {
+function BodyModel({ primary, ghost, heat, zoneStatus, onCalibrated, rings }: Body3DProps) {
   const gltf = useGLTF(MODEL_URL, false, true);
   const invalidate = useThree((s) => s.invalidate);
   const src = useMemo(() => {
@@ -78,7 +91,7 @@ function BodyModel({ primary, ghost, heat, zoneStatus, onCalibrated }: Body3DPro
   }, [gltf]);
   const rig = useMemo(() => rigFromMesh(src, lm), [src]);
 
-  const mainMat = useMemo(() => new MeshStandardMaterial({ color: '#d8cfc2', roughness: 0.48, metalness: 0.02 }), []);
+  const mainMat = useMemo(() => new MeshStandardMaterial({ color: '#cdc8c1', roughness: 0.6, metalness: 0 }), []);
   const ghostMat = useMemo(
     () => new MeshStandardMaterial({ color: '#c9965b', transparent: true, opacity: 0.28, depthWrite: false, roughness: 0.4, side: DoubleSide }),
     [],
@@ -136,7 +149,7 @@ function BodyModel({ primary, ghost, heat, zoneStatus, onCalibrated }: Body3DPro
     }
     g.setAttribute('color', new BufferAttribute(col, 3));
     mainMat.vertexColors = !!heat;
-    mainMat.color.set(heat ? '#ffffff' : '#cfc6b8');
+    mainMat.color.set(heat ? '#ffffff' : '#cdc8c1');
     mainMat.needsUpdate = true;
     invalidate();
   }, [src, zoneStatus, heat, mainMat, invalidate]);
@@ -145,11 +158,48 @@ function BodyModel({ primary, ghost, heat, zoneStatus, onCalibrated }: Body3DPro
     invalidate();
   }, [calMain, calGhost, invalidate]);
 
+  const ringData = useMemo(() => {
+    if (!calMain || !rings?.length) return [];
+    return rings.flatMap((r) => {
+      const pts = sliceRing(rig, r.key, calMain.weights);
+      if (pts.length < 3) return [];
+      // кольцо чуть шире тела (на 3 мм), чтобы лежало на коже, а не уходило внутрь
+      const c = pts.reduce((a, p) => [a[0] + p[0] / pts.length, a[1] + p[1] / pts.length, a[2] + p[2] / pts.length], [0, 0, 0]);
+      const out = pts.map((p) => {
+        const d = new Vector3(p[0] - c[0], p[1] - c[1], p[2] - c[2]);
+        const l = d.length() || 1;
+        return new Vector3(p[0], p[1], p[2]).addScaledVector(d, 0.003 / l);
+      });
+      const curve = new CatmullRomCurve3(out, true, 'centripetal');
+      const loop = curve.getSpacedPoints(96);
+      // точка подписи — край кольца со стороны подписи; сама подпись — в колонке сбоку от тела
+      const edge = out.reduce((best, p) => (p.x * r.side > best.x * r.side ? p : best), out[0]);
+      const tag = new Vector3(r.side * 0.36, edge.y, edge.z);
+      return [{ ...r, loop, edge, tag }];
+    });
+  }, [calMain, rings, rig]);
+
   if (!calMain) return null;
   return (
     <>
       <group position={[0, mainOffset, 0]}>
         <primitive object={main} />
+        {ringData.map((r) => (
+          <group key={r.key}>
+            <Line points={r.loop} color="#c9965b" lineWidth={2.2} transparent opacity={0.95} />
+            <Line points={[r.edge, r.tag]} color="#c9965b" lineWidth={1} transparent opacity={0.6} />
+            <Html position={r.tag} zIndexRange={[10, 0]} style={{ pointerEvents: 'auto' }}>
+              <button
+                type="button"
+                className={`ringtag ${r.side < 0 ? 'ringtag-left' : 'ringtag-right'}`}
+                onClick={r.onClick}
+                aria-label={`${r.label}. Открыть замеры`}
+              >
+                {r.label}
+              </button>
+            </Html>
+          </group>
+        ))}
       </group>
       {ghost && calGhost && (
         <group position={[0, ghostOffset, 0]}>
@@ -158,6 +208,28 @@ function BodyModel({ primary, ghost, heat, zoneStatus, onCalibrated }: Body3DPro
       )}
     </>
   );
+}
+
+/** Процедурное студийное окружение (RoomEnvironment): работает офлайн, ничего не скачивает. */
+function Studio() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    const pm = new PMREMGenerator(gl);
+    const room = new RoomEnvironment();
+    const env = pm.fromScene(room, 0.04).texture;
+    scene.environment = env;
+    scene.environmentIntensity = 0.2;
+    invalidate();
+    return () => {
+      scene.environment = null;
+      env.dispose();
+      pm.dispose();
+      room.dispose();
+    };
+  }, [gl, scene, invalidate]);
+  return null;
 }
 
 class GLBoundary extends Component<{ children: ReactNode; onError: (e: Error) => void }, { err: Error | null }> {
@@ -226,7 +298,7 @@ export default function Body3D(props: Body3DProps) {
         key={attempt}
         frameloop="demand"
         dpr={[1, Math.min(2, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)]}
-        camera={{ position: CAM_POS, fov: 32, near: 0.1, far: 30 }}
+        camera={{ position: CAM_POS, fov: CAM_FOV, near: 0.1, far: 30 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
         onCreated={({ gl: r }) => {
           r.domElement.addEventListener('webglcontextlost', (e) => {
@@ -235,11 +307,13 @@ export default function Body3D(props: Body3DProps) {
           });
         }}
       >
-        {/* Свет «как в зале»: ключевой сверху-сбоку рисует тени рельефа, контровой обрисовывает силуэт */}
-        <hemisphereLight args={['#f4efe6', '#2a2620', 0.35]} />
-        <directionalLight position={[1.6, 3.2, 2.2]} intensity={2.4} />
-        <directionalLight position={[-2.5, 1.2, 1.5]} intensity={0.45} color="#b8c4d6" />
-        <directionalLight position={[0, 2.5, -3]} intensity={1.3} color="#c9965b" />
+        {/* Студия: мягкое окружение даёт объём без резких бликов, ключевой свет сверху-сбоку рисует мышцы,
+            контровой бронзовый отделяет силуэт от чёрного фона */}
+        <Studio />
+        <directionalLight position={[2.4, 2.6, 1.6]} intensity={2.4} />
+        <directionalLight position={[-2.4, 1.2, 1.4]} intensity={0.3} color="#c8d2e0" />
+        <directionalLight position={[0, 2.2, -3]} intensity={0.9} color="#c9965b" />
+        <ContactShadows position={[0, 0.002, 0]} scale={1.6} blur={2.6} far={0.9} opacity={0.55} resolution={256} />
         <GLBoundary onError={setErr}>
           <Suspense fallback={null}>
             <BodyModel {...props} />

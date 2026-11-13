@@ -9,7 +9,7 @@
 // 5. Находит анатомические сечения для замеров (шея, талия на уровне пупка и т. д.).
 // 6. Пишет public/models/body.glb (сжатие meshopt через gltf-transform) и src/lib/model/landmarks.json.
 
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Document, NodeIO } from '@gltf-transform/core';
@@ -226,6 +226,150 @@ for (let n = 0; n < NV; n++) {
   zone[n] = z;
 }
 
+// ---------- 4б. поза: руки вдоль тела ----------
+// MakeHuman хранит тело в A-позе (руки разведены). Опускаем руки по скелету MakeHuman (CC0, model-src/makehuman/rigs):
+// каждая вершина поворачивается вокруг сустава плеча (голова кости upperarm01) во фронтальной плоскости на угол θ·w,
+// где w — сумма весов вершины у костей руки (upperarm01 и всех её потомков), нарисованных художниками MakeHuman.
+// Интерполяция угла (а не позиций, как в линейном скиннинге) не даёт руке «сплющиться» у подмышки.
+// Дельты морфов поворачиваются тем же поворотом, поэтому морф бицепса по-прежнему «раздувает» руку, а не сдвигает её вбок.
+// Поправка (I − R)·d_сустава учитывает, что морфы сдвигают сам плечевой сустав (иначе рука отрывалась бы от плеча).
+const ARM_ABDUCTION_DEG = 10; // руки чуть отведены, чтобы кисти не врезались в бёдра
+const PALM_TWIST_DEG = -20; // ладони к бёдрам: при −50° ладони смотрят вперёд, при 0…+60° — назад (большой палец к телу); между ними — к бедру
+const getBasePre = (i: number): Vec3 => [base[i * 3], base[i * 3 + 1], base[i * 3 + 2]];
+{
+  const RIG = resolve(MH, 'rigs');
+  const skel = JSON.parse(readFileSync(resolve(RIG, 'default.mhskel'), 'utf8')) as {
+    bones: Record<string, { head: string; tail: string; parent: string | null }>;
+    joints: Record<string, number[]>;
+  };
+  const mhw = JSON.parse(readFileSync(resolve(RIG, 'default_weights.mhw'), 'utf8')) as { weights: Record<string, Array<[number, number]>> };
+  const jointMean = (name: string): Vec3 => {
+    const vs = skel.joints[name];
+    const c: Vec3 = [0, 0, 0];
+    for (const i of vs) for (let k = 0; k < 3; k++) c[k] += P[i * 3 + k];
+    return toWorld(c[0] / vs.length, c[1] / vs.length, c[2] / vs.length);
+  };
+  const subtree = (root: string): string[] => {
+    const out = [root];
+    for (let i = 0; i < out.length; i++) for (const [n, b] of Object.entries(skel.bones)) if (b.parent === out[i]) out.push(n);
+    return out;
+  };
+  const rotate = (v: Vec3, ang: number): Vec3 => {
+    const c = Math.cos(ang);
+    const s = Math.sin(ang);
+    return [v[0] * c - v[1] * s, v[0] * s + v[1] * c, v[2]];
+  };
+
+  for (const side of ['l', 'r'] as const) {
+    const B = side === 'l' ? 'L' : 'R';
+    const sign = side === 'l' ? 1 : -1;
+    const headJoint = `upperarm01.${B}____head`;
+    const pivot = jointMean(headJoint);
+    const wristP = jointMean(`wrist.${B}____head`);
+    const cur = Math.atan2(wristP[1] - pivot[1], (wristP[0] - pivot[0]) * sign);
+    const target = -Math.PI / 2 + (ARM_ABDUCTION_DEG * Math.PI) / 180;
+    const theta = (target - cur) * sign;
+    console.log(`Поза: рука ${side} опускается на ${((Math.abs(target - cur) * 180) / Math.PI).toFixed(1)}° (веса скелета MakeHuman)`);
+
+    // вес вершины = сумма её весов у костей руки
+    const w = new Float32Array(NV);
+    for (const bone of subtree(`upperarm01.${B}`))
+      for (const [o, wt] of mhw.weights[bone] ?? []) {
+        const n = oldToNew.get(o);
+        if (n !== undefined) w[n] += wt;
+      }
+    for (let n = 0; n < NV; n++) w[n] = Math.min(1, w[n]);
+
+    // смещение сустава от каждого морфа (среднее по вершинам, задающим сустав)
+    const pivotD: Vec3[] = morphNames.map((m) => {
+      const vs = skel.joints[headJoint];
+      const c: Vec3 = [0, 0, 0];
+      for (const i of vs) {
+        const d = morphSources[m].get(i);
+        if (d) for (let k = 0; k < 3; k++) c[k] += (d[k] * S) / vs.length;
+      }
+      return c;
+    });
+
+    for (let n = 0; n < NV; n++) {
+      if (w[n] < 1e-4) continue;
+      const ang = theta * w[n];
+      const r = rotate(sub(getBasePre(n), pivot), ang);
+      base.set([pivot[0] + r[0], pivot[1] + r[1], pivot[2] + r[2]], n * 3);
+      deltas.forEach((arr, k) => {
+        const rd = rotate([arr[n * 3], arr[n * 3 + 1], arr[n * 3 + 2]], ang);
+        const dc = pivotD[k];
+        const rdc = rotate(dc, ang);
+        arr.set([rd[0] + (dc[0] - rdc[0]) * w[n], rd[1] + (dc[1] - rdc[1]) * w[n], rd[2] + (dc[2] - rdc[2]) * w[n]], n * 3);
+      });
+    }
+
+    // Ладони к бёдрам: поворот предплечья и кисти вокруг оси предплечья (кость lowerarm02 и потомки — у MakeHuman
+    // это «скручивающая» кость, её веса плавно растут от локтя к запястью, поэтому предплечье скручивается равномерно).
+    {
+      const posedJoint = (name: string): Vec3 => {
+        const r = rotate(sub(jointMean(name), pivot), theta);
+        return [pivot[0] + r[0], pivot[1] + r[1], pivot[2] + r[2]];
+      };
+      const elbow = posedJoint(`lowerarm01.${B}____head`);
+      const wristJ = posedJoint(`wrist.${B}____head`);
+      const axis = norm(sub(wristJ, elbow));
+      const phi = (PALM_TWIST_DEG * Math.PI) / 180 * sign;
+      const rotAxis = (v: Vec3, ang: number): Vec3 => {
+        // формула Родрига
+        const c = Math.cos(ang);
+        const s = Math.sin(ang);
+        const k = axis;
+        const kv = dot(k, v);
+        const kx: Vec3 = [k[1] * v[2] - k[2] * v[1], k[2] * v[0] - k[0] * v[2], k[0] * v[1] - k[1] * v[0]];
+        return [v[0] * c + kx[0] * s + k[0] * kv * (1 - c), v[1] * c + kx[1] * s + k[1] * kv * (1 - c), v[2] * c + kx[2] * s + k[2] * kv * (1 - c)];
+      };
+      const tw = new Float32Array(NV);
+      for (const bone of subtree(`lowerarm02.${B}`))
+        for (const [o, wt] of mhw.weights[bone] ?? []) {
+          const n = oldToNew.get(o);
+          if (n !== undefined) tw[n] += wt;
+        }
+      // кисть и пальцы целиком — к ним добавляем полный вес (у lowerarm02 вес на кисти частичный)
+      for (const bone of subtree(`wrist.${B}`))
+        for (const [o] of mhw.weights[bone] ?? []) {
+          const n = oldToNew.get(o);
+          if (n !== undefined) tw[n] = 1;
+        }
+      for (let n = 0; n < NV; n++) {
+        const t = Math.min(1, tw[n]);
+        if (t < 1e-4) continue;
+        const r = rotAxis(sub(getBasePre(n), elbow), phi * t);
+        base.set([elbow[0] + r[0], elbow[1] + r[1], elbow[2] + r[2]], n * 3);
+        for (const arr of deltas) arr.set(rotAxis([arr[n * 3], arr[n * 3 + 1], arr[n * 3 + 2]], phi * t), n * 3);
+      }
+    }
+
+    // Разметка сегментов следует за позой: вершины «руки», оставшиеся на торсе, больше не рука —
+    // иначе сечение бицепса захватит кусок бока. И наоборот, вершины торса, ушедшие с рукой, — рука.
+    const armSegs = new Set([`delt-${side}`, `upper-${side}`, `fore-${side}`, `hand-${side}`]);
+    for (let n = 0; n < NV; n++) {
+      if (armSegs.has(vertSeg[n]) && w[n] < 0.5) vertSeg[n] = getBasePre(n)[1] > pivot[1] ? `clav-${side}` : 'torso';
+      else if (!armSegs.has(vertSeg[n]) && w[n] >= 0.5 && (vertSeg[n] === 'torso' || vertSeg[n].startsWith('clav'))) vertSeg[n] = `delt-${side}`;
+    }
+
+    // Суставы руки (точки сечений) поворачиваются целиком
+    for (const j of [`${side}-elbow`, `${side}-hand`, `${side}-finger-3-4`]) {
+      const pt = points[j];
+      const r = rotate(sub(pt.base, pivot), theta);
+      pt.base = [pivot[0] + r[0], pivot[1] + r[1], pivot[2] + r[2]].map((v) => +v.toFixed(5)) as Vec3;
+      const keys = new Set([...Object.keys(pt.d).map(Number), ...pivotD.map((d, k) => (len(d) > 1e-7 ? k : -1)).filter((k) => k >= 0)]);
+      for (const k of keys) {
+        const rd = rotate(pt.d[k] ?? [0, 0, 0], theta);
+        const rdc = rotate(pivotD[k], theta);
+        const dd: Vec3 = [rd[0] + pivotD[k][0] - rdc[0], rd[1] + pivotD[k][1] - rdc[1], rd[2] + pivotD[k][2] - rdc[2]];
+        if (len(dd) > 1e-6) pt.d[k] = dd.map((v) => +v.toFixed(5)) as Vec3;
+        else delete pt.d[k];
+      }
+    }
+  }
+}
+
 // ---------- 5. сечения ----------
 const getBase = (i: number): Vec3 => [base[i * 3], base[i * 3 + 1], base[i * 3 + 2]];
 const segNames = [...new Set(vertSeg)].sort();
@@ -239,7 +383,8 @@ const trisOfSegs = (names: string[]) => {
   return out;
 };
 const shoulderX = Math.abs(J('l-shoulder')[0]);
-const TORSO = ['torso', 'clav-l', 'clav-r', 'delt-l', 'delt-r', 'upper-l', 'upper-r', 'thigh-l', 'thigh-r', 'neck'];
+// Руки опущены и висят рядом с торсом, поэтому в сечения груди, талии и таза они не входят
+const TORSO = ['torso', 'clav-l', 'clav-r', 'thigh-l', 'thigh-r', 'neck'];
 
 // Сечение задаётся отрезком A→B между суставами, долей t и типом нормали:
 // 'axis' — перпендикулярно отрезку (конечности), 'up' — горизонтально (торс: лента параллельно полу).
@@ -317,7 +462,7 @@ const slices: SliceDef[] = [
     [0, 1],
     tY(J('l-shoulder')[1] - 0.01),
   ),
-  measureDef({ key: 'chest', a: 'pelvis', b: 'neck', normal: 'up', radius: 0.3, lateral: 0.95, segNames: TORSO }, [0.6, 0.85], 'max'),
+  measureDef({ key: 'chest', a: 'pelvis', b: 'neck', normal: 'up', radius: 0.3, lateral: 0.95, segNames: TORSO }, [0, 1], 0.74), // уровень, найденный как максимум обхвата по соскам в A-позе (версия 1)
   measureDef({ key: 'waist', a: 'pelvis', b: 'neck', normal: 'up', radius: 0.3, lateral: 0.95, segNames: TORSO }, [0, 1], tY(navelY)),
   measureDef({ key: 'hips', a: 'pelvis', b: 'neck', normal: 'up', radius: 0.35, lateral: 1.2, segNames: TORSO }, [0, 1], tY(buttY)),
   measureDef({ key: 'biceps', a: 'l-shoulder', b: 'l-elbow', normal: 'axis', radius: 0.15, segNames: ['upper-l', 'delt-l'] }, [0, 1], 0.5),

@@ -19,9 +19,9 @@ export const norm = (a: Vec3): Vec3 => {
 };
 export const lerp = (a: Vec3, b: Vec3, t: number): Vec3 => add(a, scale(sub(b, a), t));
 
-/** Периметр выпуклой оболочки набора 2D-точек (алгоритм Эндрю, monotone chain). */
-export function convexHullPerimeter(points: Array<[number, number]>): number {
-  if (points.length < 2) return 0;
+/** Выпуклая оболочка набора 2D-точек (алгоритм Эндрю, monotone chain), против часовой стрелки. */
+export function convexHull(points: Array<[number, number]>): Array<[number, number]> {
+  if (points.length < 3) return [...points];
   const pts = [...points].sort((p, q) => (p[0] === q[0] ? p[1] - q[1] : p[0] - q[0]));
   const crossZ = (o: [number, number], a: [number, number], b: [number, number]) =>
     (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
@@ -36,7 +36,13 @@ export function convexHullPerimeter(points: Array<[number, number]>): number {
     while (upper.length >= 2 && crossZ(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
     upper.push(p);
   }
-  const hull = lower.slice(0, -1).concat(upper.slice(0, -1));
+  return lower.slice(0, -1).concat(upper.slice(0, -1));
+}
+
+/** Периметр выпуклой оболочки набора 2D-точек. */
+export function convexHullPerimeter(points: Array<[number, number]>): number {
+  if (points.length < 2) return 0;
+  const hull = convexHull(points);
   if (hull.length === 1) return 0;
   let per = 0;
   for (let i = 0; i < hull.length; i++) {
@@ -57,6 +63,14 @@ export interface Plane {
  * getPos(i) возвращает позицию вершины i (уже с учётом морфов).
  * maxRadius отсекает дальние куски (например, другую часть тела в той же плоскости).
  */
+/** Ортонормированный базис плоскости: u ⟂ n, v = n × u. */
+export function planeBasis(normal: Vec3): { n: Vec3; u: Vec3; v: Vec3 } {
+  const n = norm(normal);
+  const helper: Vec3 = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const u = norm(cross(helper, n));
+  return { n, u, v: cross(n, u) };
+}
+
 export function sectionPoints(
   triangles: ArrayLike<number>,
   getPos: (i: number) => Vec3,
@@ -64,11 +78,7 @@ export function sectionPoints(
   maxRadius = Infinity,
   keep?: (p: Vec3) => boolean,
 ): Array<[number, number]> {
-  const n = norm(plane.normal);
-  // Базис плоскости: u ⟂ n, v = n × u
-  const helper: Vec3 = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
-  const u = norm(cross(helper, n));
-  const v = cross(n, u);
+  const { n, u, v } = planeBasis(plane.normal);
   const out: Array<[number, number]> = [];
   const cache = new Map<number, number>();
   const dist = (i: number) => {

@@ -1282,6 +1282,44 @@ code {
   overflow-wrap: anywhere;
 }
 
+/* Подписи колец замеров на 3D-модели */
+.ringtag {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--s3);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* кнопка 32 px, но зона нажатия — 44 px */
+  position: relative;
+}
+.ringtag::after {
+  content: '';
+  position: absolute;
+  inset: -6px -4px;
+}
+.ringtag:active {
+  background: var(--surface-3);
+}
+.ringtag-left {
+  transform: translate(-100%, -50%);
+}
+.ringtag-right {
+  transform: translate(0, -50%);
+}
+
 /* ───── v2, этап 6: академия и печать отчёта ───── */
 .claim {
   padding: var(--s3) 0;

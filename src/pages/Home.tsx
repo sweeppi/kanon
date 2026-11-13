@@ -7,6 +7,7 @@ import { Tape } from '../components/Tape';
 import { NextWorkout } from '../components/NextWorkout';
 import { LineChart } from '../components/Chart';
 import { Body3DSlot } from '../components/Body3DSlot';
+import type { RingSpec } from '../components/Body3D';
 import { targetsFromValues } from '../lib/model/targets';
 import { globalsFromComposition, type Calibration } from '../lib/model/calibrate';
 import { latestValues, composition, goalMeasurements } from '../lib/derive';
@@ -35,6 +36,7 @@ export function Home() {
   const { d, settings, ms } = useStore();
   const [mode, setMode] = useState<Mode>('now');
   const [heat, setHeat] = useState(false);
+  const [showRings, setShowRings] = useState(true);
   const [ghostOn, setGhostOn] = useState(false); // в «Прогнозе» и «Цели» сравнение с текущим телом — по желанию
   const dates = useMemo(() => [...new Set(ms.map((m) => m.date))].sort(), [ms]);
   const [dateA, setDateA] = useState<string>('');
@@ -103,6 +105,24 @@ export function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, v, d, settings, dateA, dateB, ms, dates, fc]);
 
+  // Кольца замеров: только в режиме «Сейчас» — модель подогнана под ваши последние обхваты.
+  // Справа на экране — левая сторона тела (плечи, бицепс, бедро, голень), слева — торс, чтобы подписи не налезали.
+  const rings = useMemo<RingSpec[]>(() => {
+    if (mode !== 'now' || !showRings) return [];
+    const go = () => (location.hash = 'measure');
+    const val = (x: number | undefined) => (x === undefined ? undefined : fmt(x, x % 1 ? 1 : 0));
+    const list: Array<[RingSpec['key'], string, number | undefined, 1 | -1]> = [
+      ['shoulders', 'Плечи', v.shoulders, 1],
+      ['chest', 'Грудь', v.chest, -1],
+      ['biceps', 'Бицепс', v.bicepsRelaxed ?? v.bicepsFlexed, 1],
+      ['waist', 'Талия', v.waist, -1],
+      ['hips', 'Таз', v.hips, -1],
+      ['thigh', 'Бедро', v.thigh, 1],
+      ['calf', 'Голень', v.calf, 1],
+    ];
+    return list.filter(([, , x]) => x !== undefined).map(([key, name, x, side]) => ({ key, label: `${name} ${val(x)}`, side, onClick: go }));
+  }, [mode, showRings, v]);
+
   const nextMin = LEVELS[lvl.levelIndex + 1]?.minScore ?? 100;
   const curMin = LEVELS[lvl.levelIndex].minScore;
   const maxRes = cal ? Math.max(0, ...Object.values(cal.main.residuals).map((x) => Math.abs(x ?? 0))) : null;
@@ -146,7 +166,7 @@ export function Home() {
               </div>
             )}
             <span className="statue-note">модель приблизительная</span>
-            <Body3DSlot height={400} primary={primary} ghost={mode === 'forecast' || mode === 'goal' ? (ghostOn ? ghost : null) : ghost} heat={heat} zoneStatus={d.zoneStatus} onCalibrated={(main, g) => setCal({ main, ghost: g })} />
+            <Body3DSlot height={470} rings={rings} primary={primary} ghost={mode === 'forecast' || mode === 'goal' ? (ghostOn ? ghost : null) : ghost} heat={heat} zoneStatus={d.zoneStatus} onCalibrated={(main, g) => setCal({ main, ghost: g })} />
             <Seg<Mode>
               value={mode}
               onChange={setMode}
@@ -160,6 +180,11 @@ export function Home() {
               ]}
             />
             <div className="spread" style={{ flexWrap: 'wrap' }}>
+              {mode === 'now' && (
+                <label className="check">
+                  <input type="checkbox" checked={showRings} onChange={(e) => setShowRings(e.target.checked)} /> Обхваты
+                </label>
+              )}
               <label className="check">
                 <input type="checkbox" checked={heat} onChange={(e) => setHeat(e.target.checked)} /> Сильные и слабые зоны
               </label>

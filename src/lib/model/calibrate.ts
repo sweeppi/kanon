@@ -3,7 +3,7 @@
 // Идея: обхват модели = периметр выпуклой оболочки сечения меша плоскостью (как лента).
 // Для каждого замера есть «свой» морф (incr/decr). Подбираем его параметр бисекцией,
 // повторяя несколько кругов (координатный спуск), т. к. морфы слегка влияют друг на друга.
-import { tapeCircumference, lerp, sub, norm, type Vec3 } from './slice';
+import { tapeCircumference, sectionPoints, convexHull, planeBasis, lerp, sub, norm, type Vec3 } from './slice';
 import { MORPH_PARAMS, type MorphParam, type SliceDef, type SliceKey, type Landmarks } from './schema';
 
 export interface Rig {
@@ -122,6 +122,23 @@ export function measureSlice(rig: Rig, key: SliceKey, w: Float32Array): number {
   const lim = s.lateral ? s.lateral * Math.abs(pointAt(rig.lm, 'l-shoulder', w)[0]) : Infinity;
   const keep = s.lateral ? (p: Vec3) => Math.abs(p[0]) <= lim : undefined;
   return tapeCircumference(rig.sliceTris.get(key)!, vertexGetter(rig, w), plane, s.radius, keep) * 100;
+}
+
+/**
+ * «Лента» сечения в 3D: вершины выпуклой оболочки — ровно то, что меряет measureSlice.
+ * Нужна, чтобы нарисовать кольцо замера на модели. Пустой массив — сечения нет.
+ */
+export function sliceRing(rig: Rig, key: SliceKey, w: Float32Array): Vec3[] {
+  const s = rig.lm.slices.find((x) => x.key === key);
+  if (!s) return [];
+  const plane = slicePlane(rig.lm, s, w);
+  const lim = s.lateral ? s.lateral * Math.abs(pointAt(rig.lm, 'l-shoulder', w)[0]) : Infinity;
+  const keep = s.lateral ? (p: Vec3) => Math.abs(p[0]) <= lim : undefined;
+  const hull = convexHull(sectionPoints(rig.sliceTris.get(key)!, vertexGetter(rig, w), plane, s.radius, keep));
+  if (hull.length < 3) return [];
+  const { u, v } = planeBasis(plane.normal);
+  const o = plane.origin;
+  return hull.map(([a, b]) => [o[0] + u[0] * a + v[0] * b, o[1] + u[1] * a + v[1] * b, o[2] + u[2] * a + v[2] * b] as Vec3);
 }
 
 export function measureHeight(rig: Rig, w: Float32Array): number {

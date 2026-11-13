@@ -12,6 +12,8 @@
 
 Использованные морфы MakeHuman: `macrodetails/{caucasian,african,asian}-{male,female}-young` (женские — для морфа пола), `universal-male-young-{average,max,min}muscle-*`, `macrodetails/height/male-young-averagemuscle-averageweight-{max,min}height`, `measure/measure-{neck,bust,waist,hips,upperarm,thigh,calf,wrist,ankle,knee}-circ-{incr,decr}`, `measure/measure-shoulder-dist-{incr,decr}`, `armslegs/{l,r}-lowerarm-muscle-{incr,decr}`; для морфа «рельеф» — `torso/torso-muscle-{pectoral,dorsi}-incr`, `torso/torso-vshape-incr`, `armslegs/{l,r}-{upperarm,upperarm-shoulder,upperleg,lowerleg}-muscle-incr`.
 
+Для позы «руки вдоль тела» используются скелет и веса MakeHuman: `model-src/makehuman/rigs/default.mhskel` и `default_weights.mhw` (тот же коммит, лицензия **CC0** указана внутри файлов; © Data Collection AB, Joel Palmius, Jonas Hauquier). В приложение они не попадают — только в сборку модели.
+
 Программа MakeHuman (AGPL) **не используется и не распространяется** — только CC0-ассеты.
 
 ## Данные

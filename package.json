@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "model": "node scripts/build-model.mjs",
+    "model": "node scripts/build-model.ts",
     "icons": "node scripts/make-icons.mjs",
     "verify-sources": "node scripts/verify-sources.mjs",
     "check": "npm run typecheck && npm run test && npm run build"
